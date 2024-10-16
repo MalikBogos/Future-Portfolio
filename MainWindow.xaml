@@ -1,0 +1,48 @@
+﻿<Window x:Class="FuturePortfolio.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:FuturePortfolio"
+        mc:Ignorable="d"
+        Title="MainWindow" Height="450" Width="800">
+    <Grid>
+        <DataGrid x:Name="SpreadsheetGrid"
+                  AutoGenerateColumns="False"
+                  CanUserAddRows="True"
+                  CanUserDeleteRows="True"
+                  CanUserResizeColumns="True"
+                  CanUserResizeRows="True"
+                  CanUserSortColumns="True"
+                  IsReadOnly="False"
+                  HeadersVisibility="All"
+                  SelectionUnit="Cell"
+                  SelectionMode="Extended"
+                  HorizontalScrollBarVisibility="Auto"
+                  VerticalScrollBarVisibility="Auto"
+                  HorizontalAlignment="Left"
+                  VerticalAlignment="Top"
+                  Margin="10">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Kolom 1" Binding="{Binding Kolom1, UpdateSourceTrigger=PropertyChanged}" Width="Auto" />
+                <DataGridTextColumn Header="Kolom 2" Binding="{Binding Kolom2, UpdateSourceTrigger=PropertyChanged}" Width="Auto" />
+                <DataGridTextColumn Header="Kolom 3" Binding="{Binding Kolom3, UpdateSourceTrigger=PropertyChanged}" Width="Auto" />
+                <DataGridTextColumn Header="Kolom 4" Binding="{Binding Kolom4, UpdateSourceTrigger=PropertyChanged}" Width="Auto" />
+            </DataGrid.Columns>
+            <DataGrid.CellStyle>
+                <Style TargetType="DataGridCell">
+                    <Setter Property="BorderThickness" Value="0,0,1,1"/>
+                    <Setter Property="BorderBrush" Value="LightGray"/>
+                    <Setter Property="Background" Value="White"/>
+                </Style>
+            </DataGrid.CellStyle>
+            <DataGrid.ColumnHeaderStyle>
+                <Style TargetType="DataGridColumnHeader">
+                    <Setter Property="Background" Value="LightGray"/>
+                    <Setter Property="BorderThickness" Value="0,0,1,1"/>
+                    <Setter Property="BorderBrush" Value="Gray"/>
+                </Style>
+            </DataGrid.ColumnHeaderStyle>
+        </DataGrid>
+    </Grid>
+</Window>
