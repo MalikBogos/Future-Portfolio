@@ -26,6 +26,8 @@
                 <DataGridTextColumn Header="A" Binding="{Binding [0].Value}" Width="100"/>
                 <DataGridTextColumn Header="B" Binding="{Binding [1].Value}" Width="100"/>
                 <DataGridTextColumn Header="C" Binding="{Binding [2].Value}" Width="100"/>
+                <DataGridTextColumn Header="D" Binding="{Binding [3].Value}" Width="100"/>
+                <DataGridTextColumn Header="E" Binding="{Binding [4].Value}" Width="100"/>
             </DataGrid.Columns>
             <DataGrid.CellStyle>
                 <Style TargetType="DataGridCell">
@@ -33,12 +35,13 @@
                         <Setter.Value>
                             <ControlTemplate TargetType="DataGridCell">
                                 <Border BorderThickness="0,0,1,1" BorderBrush="LightGray">
-                                    <TextBlock Text="{Binding Value}" 
-                                               FontStyle="{Binding Format.FontStyle}"
-                                               FontWeight="{Binding Format.FontWeight}"
-                                               Foreground="{Binding Format.ForegroundColor}"
-                                               Background="{Binding Format.BackgroundColor}"
-                                               Padding="5,2"/>
+                                    <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" 
+                                             FontStyle="{Binding Format.FontStyle}"
+                                             FontWeight="{Binding Format.FontWeight}"
+                                             Foreground="{Binding Format.ForegroundColor}"
+                                             Background="{Binding Format.BackgroundColor}"
+                                             BorderThickness="0"
+                                             Padding="5,2"/>
                                 </Border>
                             </ControlTemplate>
                         </Setter.Value>

@@ -4,41 +4,57 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Media;
 using System.IO;
-using System.Text.Json;
 using System.Windows.Controls;
 using System.Data;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
 
 namespace FuturePortfolio
 {
     public partial class MainWindow : Window
     {
         private SpreadsheetData _data;
+        private const string SaveFilePath = "spreadsheet_data.json";
 
         public MainWindow()
         {
             InitializeComponent();
-            _data = new SpreadsheetData(100, 3);
+            LoadSpreadsheet();
+            this.DataContext = _data;
             ExcelLikeGrid.ItemsSource = _data;
 
             ExcelLikeGrid.LoadingRow += ExcelLikeGrid_LoadingRow;
+            this.Closing += MainWindow_Closing;
+        }
+
+        private void MainWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+        {
+            SaveSpreadsheet();
+        }
+
+        private void SaveSpreadsheet()
+        {
+            var jsonString = JsonSerializer.Serialize(_data);
+            File.WriteAllText(SaveFilePath, jsonString);
+        }
+
+        private void LoadSpreadsheet()
+        {
+            if (File.Exists(SaveFilePath))
+            {
+                var jsonString = File.ReadAllText(SaveFilePath);
+                _data = JsonSerializer.Deserialize<SpreadsheetData>(jsonString);
+            }
+            else
+            {
+                _data = new SpreadsheetData(20, 5);
+            }
         }
 
         private void ExcelLikeGrid_LoadingRow(object sender, DataGridRowEventArgs e)
         {
             e.Row.Header = (e.Row.GetIndex() + 1).ToString();
-        }
-
-        public void SaveSpreadsheet(string filePath)
-        {
-            var jsonString = JsonSerializer.Serialize(_data);
-            File.WriteAllText(filePath, jsonString);
-        }
-
-        public void LoadSpreadsheet(string filePath)
-        {
-            var jsonString = File.ReadAllText(filePath);
-            _data = JsonSerializer.Deserialize<SpreadsheetData>(jsonString);
-            ExcelLikeGrid.ItemsSource = _data;
         }
 
         public void ApplyFormatToCell(int row, int column, CellFormat format)
@@ -51,19 +67,45 @@ namespace FuturePortfolio
         {
             if (e.EditAction == DataGridEditAction.Commit)
             {
-                var cell = (e.Row.Item as ObservableCollection<Cell>)[e.Column.DisplayIndex];
-                var editedValue = (e.EditingElement as TextBox).Text;
+                var column = e.Column.DisplayIndex;
+                var row = e.Row.GetIndex();
+                var editedTextBox = e.EditingElement as TextBox;
 
-                if (editedValue.StartsWith("="))
+                if (editedTextBox != null)
                 {
-                    cell.Formula = editedValue;
-                    cell.Value = FormulaCalculator.CalculateFormula(editedValue);
+                    string newValue = editedTextBox.Text;
+                    UpdateCellValue(row, column, newValue);
                 }
-                else
-                {
-                    cell.Value = editedValue;
-                    cell.Formula = null;
-                }
+            }
+        }
+
+        private void UpdateCellValue(int row, int column, string newValue)
+        {
+            var cell = _data[row][column];
+
+            if (newValue.StartsWith("="))
+            {
+                cell.Formula = newValue;
+                cell.Value = EvaluateFormula(newValue.Substring(1));
+            }
+            else
+            {
+                cell.Formula = null;
+                cell.Value = newValue;
+            }
+        }
+
+        private string EvaluateFormula(string formula)
+        {
+            try
+            {
+                DataTable dt = new DataTable();
+                var result = dt.Compute(formula, "");
+                return result.ToString();
+            }
+            catch (Exception ex)
+            {
+                return $"Error: {ex.Message}";
             }
         }
     }
@@ -123,6 +165,9 @@ public class CellFormat
 
 public class SpreadsheetData : ObservableCollection<ObservableCollection<Cell>>
 {
+    [JsonConstructor]
+    public SpreadsheetData() { }
+
     public SpreadsheetData(int rows, int columns)
     {
         for (int i = 0; i < rows; i++)
