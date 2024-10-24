@@ -9,23 +9,65 @@ using System.Data;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-
 namespace FuturePortfolio
 {
+    public class CellTemplateSelector : DataTemplateSelector
+    {
+        public DataTemplate DefaultTemplate { get; set; }
+        public DataTemplate EditingTemplate { get; set; }
+
+        public override DataTemplate SelectTemplate(object item, DependencyObject container)
+        {
+            var cell = container as DataGridCell;
+            return cell != null && cell.IsEditing ? EditingTemplate : DefaultTemplate;
+        }
+    }
+
     public partial class MainWindow : Window
     {
         private SpreadsheetData _data;
         private const string SaveFilePath = "spreadsheet_data.json";
+        private Cell _selectedCell;
 
         public MainWindow()
         {
             InitializeComponent();
             LoadSpreadsheet();
             this.DataContext = _data;
+
+            GenerateColumns();
             ExcelLikeGrid.ItemsSource = _data;
 
             ExcelLikeGrid.LoadingRow += ExcelLikeGrid_LoadingRow;
             this.Closing += MainWindow_Closing;
+        }
+
+        private void GenerateColumns()
+        {
+            ExcelLikeGrid.Columns.Clear();
+            for (int i = 0; i < _data[0].Count; i++)
+            {
+                var column = new DataGridTextColumn
+                {
+                    Header = ((char)('A' + i)).ToString(),
+                    Width = 100,
+                    Binding = new System.Windows.Data.Binding($"[{i}].Value")
+                    {
+                        UpdateSourceTrigger = System.Windows.Data.UpdateSourceTrigger.PropertyChanged
+                    },
+                    EditingElementStyle = new Style(typeof(TextBox))
+                    {
+                        Setters =
+                {
+                    new Setter(TextBox.BorderThicknessProperty, new Thickness(0)),
+                    new Setter(TextBox.BackgroundProperty, Brushes.White),
+                    new Setter(TextBox.PaddingProperty, new Thickness(2))
+                }
+                    }
+                };
+
+                ExcelLikeGrid.Columns.Add(column);
+            }
         }
 
         private void MainWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e)
@@ -79,6 +121,56 @@ namespace FuturePortfolio
             }
         }
 
+        private void ExcelLikeGrid_SelectedCellsChanged(object sender, SelectedCellsChangedEventArgs e)
+        {
+            if (ExcelLikeGrid.SelectedCells.Count > 0)
+            {
+                var cellInfo = ExcelLikeGrid.SelectedCells[0];
+                var row = cellInfo.Item as ObservableCollection<Cell>;
+                var column = cellInfo.Column.DisplayIndex;
+                _selectedCell = row[column];
+            }
+            else
+            {
+                _selectedCell = null;
+            }
+        }
+
+        private void BoldButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedCell != null)
+            {
+                _selectedCell.Format ??= new CellFormat();
+                _selectedCell.Format.FontWeight = _selectedCell.Format.FontWeight == FontWeights.Bold ? FontWeights.Normal : FontWeights.Bold;
+                RefreshCell();
+            }
+        }
+
+        private void ItalicButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedCell != null)
+            {
+                _selectedCell.Format ??= new CellFormat();
+                _selectedCell.Format.FontStyle = _selectedCell.Format.FontStyle == FontStyles.Italic ? FontStyles.Normal : FontStyles.Italic;
+                RefreshCell();
+            }
+        }
+
+        private void ColorButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedCell != null)
+            {
+                _selectedCell.Format ??= new CellFormat();
+                _selectedCell.Format.ForegroundColor = _selectedCell.Format.ForegroundColor == Colors.Red ? Colors.Black : Colors.Red;
+                RefreshCell();
+            }
+        }
+
+        private void RefreshCell()
+        {
+            ExcelLikeGrid.Items.Refresh();
+        }
+
         private void UpdateCellValue(int row, int column, string newValue)
         {
             var cell = _data[row][column];
@@ -117,6 +209,7 @@ public class Cell : INotifyPropertyChanged
     private string _formula;
     private CellFormat _format;
 
+    [JsonPropertyName("Value")]
     public string Value
     {
         get => _value;
@@ -147,6 +240,11 @@ public class Cell : INotifyPropertyChanged
         }
     }
 
+    public Cell()
+    {
+        Format = new CellFormat();
+    }
+
     public event PropertyChangedEventHandler PropertyChanged;
 
     protected virtual void OnPropertyChanged(string propertyName)
@@ -155,12 +253,19 @@ public class Cell : INotifyPropertyChanged
     }
 }
 
-public class CellFormat
+public class CellFormat : INotifyPropertyChanged
 {
-    public FontStyle FontStyle { get; set; }
-    public FontWeight FontWeight { get; set; }
-    public Color ForegroundColor { get; set; }
-    public Color BackgroundColor { get; set; }
+    public FontStyle FontStyle { get; set; } = FontStyles.Normal;
+    public FontWeight FontWeight { get; set; } = FontWeights.Normal;
+    public Color ForegroundColor { get; set; } = Colors.Black;
+    public Color BackgroundColor { get; set; } = Colors.White;
+
+    public event PropertyChangedEventHandler PropertyChanged;
+
+    protected virtual void OnPropertyChanged(string propertyName)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
 }
 
 public class SpreadsheetData : ObservableCollection<ObservableCollection<Cell>>
@@ -191,6 +296,7 @@ public class SpreadsheetData : ObservableCollection<ObservableCollection<Cell>>
         this[row][column].Value = value;
     }
 }
+
 public static class FormulaCalculator
 {
     public static string CalculateFormula(string formula)
