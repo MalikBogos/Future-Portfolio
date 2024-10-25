@@ -47,6 +47,100 @@ namespace FuturePortfolio
             };
         }
 
+        private void AddRowButton_Click(object sender, RoutedEventArgs e)
+        {
+            var newRow = new ObservableCollection<Cell>();
+            for (int j = 0; j < _data[0].Count; j++)
+            {
+                newRow.Add(new Cell());
+            }
+            _data.Add(newRow);
+
+            // Refresh row headers
+            for (int i = 0; i < _data.Count; i++)
+            {
+                var row = ExcelLikeGrid.Items[i] as ObservableCollection<Cell>;
+                if (row != null)
+                {
+                    var rowContainer = ExcelLikeGrid.ItemContainerGenerator.ContainerFromIndex(i) as DataGridRow;
+                    if (rowContainer != null)
+                    {
+                        rowContainer.Header = (i + 1).ToString();
+                    }
+                }
+            }
+        }
+
+        private void AddColumnButton_Click(object sender, RoutedEventArgs e)
+        {
+            int newColumnIndex = _data[0].Count;
+
+            // Add new cell to each row
+            foreach (var row in _data)
+            {
+                row.Add(new Cell());
+            }
+
+            // Add new column to DataGrid
+            var column = new DataGridTextColumn
+            {
+                Header = ((char)('A' + newColumnIndex)).ToString(),
+                Width = 100,
+                Binding = new System.Windows.Data.Binding($"[{newColumnIndex}].Value")
+                {
+                    UpdateSourceTrigger = System.Windows.Data.UpdateSourceTrigger.PropertyChanged
+                },
+                EditingElementStyle = new Style(typeof(TextBox))
+                {
+                    Setters =
+                {
+                    new Setter(TextBox.BorderThicknessProperty, new Thickness(0)),
+                    new Setter(TextBox.BackgroundProperty, Brushes.White),
+                    new Setter(TextBox.PaddingProperty, new Thickness(2))
+                }
+                }
+            };
+
+            ExcelLikeGrid.Columns.Add(column);
+        }
+
+        private void RemoveRowButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_data.Count > 1) // Keep at least one row
+            {
+                _data.RemoveAt(_data.Count - 1);
+
+                // Refresh row headers
+                for (int i = 0; i < _data.Count; i++)
+                {
+                    var row = ExcelLikeGrid.Items[i] as ObservableCollection<Cell>;
+                    if (row != null)
+                    {
+                        var rowContainer = ExcelLikeGrid.ItemContainerGenerator.ContainerFromIndex(i) as DataGridRow;
+                        if (rowContainer != null)
+                        {
+                            rowContainer.Header = (i + 1).ToString();
+                        }
+                    }
+                }
+            }
+        }
+
+        private void RemoveColumnButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_data[0].Count > 1) // Keep at least one column
+            {
+                // Remove last cell from each row
+                foreach (var row in _data)
+                {
+                    row.RemoveAt(row.Count - 1);
+                }
+
+                // Remove last column from DataGrid
+                ExcelLikeGrid.Columns.RemoveAt(ExcelLikeGrid.Columns.Count - 1);
+            }
+        }
+
         private void GenerateColumns()
         {
             ExcelLikeGrid.Columns.Clear();
@@ -82,7 +176,11 @@ namespace FuturePortfolio
 
         private void SaveSpreadsheet()
         {
-            var jsonString = JsonSerializer.Serialize(_data);
+            var options = new JsonSerializerOptions
+            {
+                WriteIndented = true
+            };
+            var jsonString = JsonSerializer.Serialize(_data, options);
             File.WriteAllText(SaveFilePath, jsonString);
         }
 
@@ -95,7 +193,7 @@ namespace FuturePortfolio
             }
             else
             {
-                _data = new SpreadsheetData(20, 5);
+                _data = new SpreadsheetData(20, 10); // Default size
             }
         }
 

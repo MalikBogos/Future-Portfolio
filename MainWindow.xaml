@@ -46,6 +46,11 @@
             <Button x:Name="BoldButton" Content="B" FontWeight="Bold" Click="BoldButton_Click"/>
             <Button x:Name="ItalicButton" Content="I" FontStyle="Italic" Click="ItalicButton_Click"/>
             <Button x:Name="ColorButton" Content="A" Foreground="Red" Click="ColorButton_Click"/>
+            <Separator/>
+            <Button x:Name="AddRowButton" Content="Add Row" Click="AddRowButton_Click" Padding="5,2"/>
+            <Button x:Name="AddColumnButton" Content="Add Column" Click="AddColumnButton_Click" Padding="5,2"/>
+            <Button x:Name="RemoveRowButton" Content="Remove Row" Click="RemoveRowButton_Click" Padding="5,2"/>
+            <Button x:Name="RemoveColumnButton" Content="Remove Column" Click="RemoveColumnButton_Click" Padding="5,2"/>
         </ToolBar>
         <DataGrid x:Name="ExcelLikeGrid" Grid.Row="1"
                   AutoGenerateColumns="False"
