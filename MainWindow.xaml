@@ -48,16 +48,19 @@
             <Button x:Name="ColorButton" Content="A" Foreground="Red" Click="ColorButton_Click"/>
         </ToolBar>
         <DataGrid x:Name="ExcelLikeGrid" Grid.Row="1"
-          AutoGenerateColumns="False"
-          CanUserAddRows="False"
-          EnableColumnVirtualization="True"
-          EnableRowVirtualization="True"
-          CellEditEnding="ExcelLikeGrid_CellEditEnding"
-          SelectedCellsChanged="ExcelLikeGrid_SelectedCellsChanged"
-          HeadersVisibility="All"
-          SelectionUnit="Cell"
-          SelectionMode="Single"
-          RowHeaderWidth="25">
+                  AutoGenerateColumns="False"
+                  CanUserAddRows="False"
+                  EnableColumnVirtualization="True"
+                  EnableRowVirtualization="True"
+                  CellEditEnding="ExcelLikeGrid_CellEditEnding"
+                  SelectedCellsChanged="ExcelLikeGrid_SelectedCellsChanged"
+                  HeadersVisibility="All"
+                  SelectionUnit="Cell"
+                  SelectionMode="Single"
+                  RowHeaderWidth="25"
+                  GridLinesVisibility="None"
+                  HorizontalGridLinesBrush="LightGray"
+                  VerticalGridLinesBrush="LightGray">
             <DataGrid.Resources>
                 <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#3399FF" Opacity="0.4"/>
                 <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="Black"/>
@@ -67,13 +70,13 @@
             <DataGrid.RowHeaderTemplate>
                 <DataTemplate>
                     <TextBlock Text="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=Header}"
-                      VerticalAlignment="Center"
-                      HorizontalAlignment="Center"/>
+                              VerticalAlignment="Center"
+                              HorizontalAlignment="Center"/>
                 </DataTemplate>
             </DataGrid.RowHeaderTemplate>
             <DataGrid.CellStyle>
                 <Style TargetType="DataGridCell">
-                    <Setter Property="BorderThickness" Value="1"/>
+                    <Setter Property="BorderThickness" Value="0,0,1,1"/>
                     <Setter Property="BorderBrush" Value="LightGray"/>
                     <Setter Property="Background" Value="White"/>
                     <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
@@ -81,9 +84,9 @@
                         <Setter.Value>
                             <ControlTemplate TargetType="DataGridCell">
                                 <Border BorderThickness="{TemplateBinding BorderThickness}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                Background="{TemplateBinding Background}">
-                                    <ContentPresenter />
+                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                        Background="{TemplateBinding Background}">
+                                    <ContentPresenter Margin="1"/>
                                 </Border>
                             </ControlTemplate>
                         </Setter.Value>
@@ -95,6 +98,14 @@
                     </Style.Triggers>
                 </Style>
             </DataGrid.CellStyle>
+            <DataGrid.ColumnHeaderStyle>
+                <Style TargetType="DataGridColumnHeader">
+                    <Setter Property="BorderThickness" Value="0,0,1,1"/>
+                    <Setter Property="BorderBrush" Value="LightGray"/>
+                    <Setter Property="Background" Value="#F0F0F0"/>
+                    <Setter Property="Padding" Value="5"/>
+                </Style>
+            </DataGrid.ColumnHeaderStyle>
         </DataGrid>
     </Grid>
 </Window>

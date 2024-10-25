@@ -40,6 +40,11 @@ namespace FuturePortfolio
 
             ExcelLikeGrid.LoadingRow += ExcelLikeGrid_LoadingRow;
             this.Closing += MainWindow_Closing;
+
+            ExcelLikeGrid.SelectionChanged += (s, e) =>
+            {
+                MessageBox.Show($"Selection changed. Selected cells: {ExcelLikeGrid.SelectedCells.Count}");
+            };
         }
 
         private void GenerateColumns()
