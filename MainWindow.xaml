@@ -42,8 +42,13 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
         <ToolBar Grid.Row="0">
+
+            
             
             <Separator/>
+
+            
+
             <Button x:Name="AddRowButton" Content="Add Row" Click="AddRowButton_Click" Padding="5,2"/>
             <Button x:Name="AddColumnButton" Content="Add Column" Click="AddColumnButton_Click" Padding="5,2"/>
             <Button x:Name="RemoveRowButton" Content="Remove Row" Click="RemoveRowButton_Click" Padding="5,2"/>

@@ -34,6 +34,7 @@ namespace FuturePortfolio
         private WpfCell? _selectedCell;
         private const string SaveFilePath = "spreadsheet.json";
 
+
         public MainWindow()
         {
             InitializeComponent();
@@ -47,6 +48,7 @@ namespace FuturePortfolio
             ExcelLikeGrid.LoadingRow += ExcelLikeGrid_LoadingRow;
             this.Closing += MainWindow_Closing;
         }
+
 
         private void AddRowButton_Click(object sender, RoutedEventArgs e)
         {
@@ -149,6 +151,8 @@ namespace FuturePortfolio
                 }
             }
         }
+
+
 
 
         private void RefreshCell()
