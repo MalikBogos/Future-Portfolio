@@ -1,39 +1,38 @@
 ﻿<Window x:Class="FuturePortfolio.MainWindow"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:FuturePortfolio"
-        mc:Ignorable="d"
-        Title="DoWell" Height="450" Width="800">
+            xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+            xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+            xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+            xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+            xmlns:local="clr-namespace:FuturePortfolio"
+            mc:Ignorable="d"
+            Title="DoWell" Height="450" Width="800">
     <Window.Resources>
         <local:CellTemplateSelector x:Key="CellTemplateSelector">
             <local:CellTemplateSelector.DefaultTemplate>
                 <DataTemplate>
                     <TextBlock Text="{Binding Value}"
-                           FontStyle="{Binding Format.FontStyle}"
-                           FontWeight="{Binding Format.FontWeight}"
-                           Foreground="{Binding Format.ForegroundColor}"
-                           Background="{Binding Format.BackgroundColor}"
-                           Padding="5,2"/>
+              FontStyle="{Binding Format.FontStyle, UpdateSourceTrigger=PropertyChanged}"
+              FontWeight="{Binding Format.FontWeight, UpdateSourceTrigger=PropertyChanged}"
+              Foreground="{Binding Format.ForegroundColor, UpdateSourceTrigger=PropertyChanged}"
+              Background="{Binding Format.BackgroundColor, UpdateSourceTrigger=PropertyChanged}"
+              Padding="5,2"/>
                 </DataTemplate>
             </local:CellTemplateSelector.DefaultTemplate>
             <local:CellTemplateSelector.EditingTemplate>
                 <DataTemplate>
-                    <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
-                         FontStyle="{Binding Format.FontStyle}"
-                         FontWeight="{Binding Format.FontWeight}"
-                         Foreground="{Binding Format.ForegroundColor}"
-                         Background="{Binding Format.BackgroundColor}"
-                         BorderThickness="0"
-                         Padding="5,2"/>
+                    <TextBlock Text="{Binding Value}"
+              FontStyle="{Binding Format.FontStyle, UpdateSourceTrigger=PropertyChanged}"
+              FontWeight="{Binding Format.FontWeight, UpdateSourceTrigger=PropertyChanged}"
+              Foreground="{Binding Format.ForegroundColor, UpdateSourceTrigger=PropertyChanged}"
+              Background="{Binding Format.BackgroundColor, UpdateSourceTrigger=PropertyChanged}"
+              Padding="5,2"/>
                 </DataTemplate>
             </local:CellTemplateSelector.EditingTemplate>
         </local:CellTemplateSelector>
 
         <DataTemplate x:Key="CellTemplate">
             <ContentPresenter Content="{Binding}"
-                          ContentTemplateSelector="{StaticResource CellTemplateSelector}"/>
+                              ContentTemplateSelector="{StaticResource CellTemplateSelector}"/>
         </DataTemplate>
     </Window.Resources>
 
@@ -43,9 +42,7 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
         <ToolBar Grid.Row="0">
-            <Button x:Name="BoldButton" Content="B" FontWeight="Bold" Click="BoldButton_Click"/>
-            <Button x:Name="ItalicButton" Content="I" FontStyle="Italic" Click="ItalicButton_Click"/>
-            <Button x:Name="ColorButton" Content="A" Foreground="Red" Click="ColorButton_Click"/>
+            
             <Separator/>
             <Button x:Name="AddRowButton" Content="Add Row" Click="AddRowButton_Click" Padding="5,2"/>
             <Button x:Name="AddColumnButton" Content="Add Column" Click="AddColumnButton_Click" Padding="5,2"/>
@@ -53,19 +50,18 @@
             <Button x:Name="RemoveColumnButton" Content="Remove Column" Click="RemoveColumnButton_Click" Padding="5,2"/>
         </ToolBar>
         <DataGrid x:Name="ExcelLikeGrid" Grid.Row="1"
-                  AutoGenerateColumns="False"
-                  CanUserAddRows="False"
-                  EnableColumnVirtualization="True"
-                  EnableRowVirtualization="True"
-                  CellEditEnding="ExcelLikeGrid_CellEditEnding"
-                  SelectedCellsChanged="ExcelLikeGrid_SelectedCellsChanged"
-                  HeadersVisibility="All"
-                  SelectionUnit="Cell"
-                  SelectionMode="Single"
-                  RowHeaderWidth="25"
-                  GridLinesVisibility="None"
-                  HorizontalGridLinesBrush="LightGray"
-                  VerticalGridLinesBrush="LightGray">
+                      AutoGenerateColumns="False"
+                      CanUserAddRows="False"
+                      EnableColumnVirtualization="True"
+                      EnableRowVirtualization="True"
+                      CellEditEnding="ExcelLikeGrid_CellEditEnding"
+                      HeadersVisibility="All"
+                      SelectionUnit="Cell"
+                      SelectionMode="Single"
+                      RowHeaderWidth="25"
+                      GridLinesVisibility="None"
+                      HorizontalGridLinesBrush="LightGray"
+                      VerticalGridLinesBrush="LightGray">
             <DataGrid.Resources>
                 <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#3399FF" Opacity="0.4"/>
                 <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="Black"/>
@@ -75,8 +71,8 @@
             <DataGrid.RowHeaderTemplate>
                 <DataTemplate>
                     <TextBlock Text="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=Header}"
-                              VerticalAlignment="Center"
-                              HorizontalAlignment="Center"/>
+                                  VerticalAlignment="Center"
+                                  HorizontalAlignment="Center"/>
                 </DataTemplate>
             </DataGrid.RowHeaderTemplate>
             <DataGrid.CellStyle>
@@ -89,8 +85,8 @@
                         <Setter.Value>
                             <ControlTemplate TargetType="DataGridCell">
                                 <Border BorderThickness="{TemplateBinding BorderThickness}"
-                                        BorderBrush="{TemplateBinding BorderBrush}"
-                                        Background="{TemplateBinding Background}">
+                                            BorderBrush="{TemplateBinding BorderBrush}"
+                                            Background="{TemplateBinding Background}">
                                     <ContentPresenter Margin="1"/>
                                 </Border>
                             </ControlTemplate>

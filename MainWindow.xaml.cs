@@ -8,13 +8,17 @@ using System.Windows.Controls;
 using System.Data;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.EntityFrameworkCore;
+using FuturePortfolio.Models;
+using FuturePortfolio.Data;
+
 
 namespace FuturePortfolio
 {
     public class CellTemplateSelector : DataTemplateSelector
     {
-        public DataTemplate DefaultTemplate { get; set; }
-        public DataTemplate EditingTemplate { get; set; }
+        public required DataTemplate DefaultTemplate { get; set; }
+        public required DataTemplate EditingTemplate { get; set; }
 
         public override DataTemplate SelectTemplate(object item, DependencyObject container)
         {
@@ -25,120 +29,47 @@ namespace FuturePortfolio
 
     public partial class MainWindow : Window
     {
-        private SpreadsheetData _data;
-        private const string SaveFilePath = "spreadsheet_data.json";
-        private Cell _selectedCell;
+        private SpreadsheetDataWithDb _data;
+        private readonly SpreadSheetContext _context;
+        private WpfCell? _selectedCell;
+        private const string SaveFilePath = "spreadsheet.json";
 
         public MainWindow()
         {
             InitializeComponent();
-            LoadSpreadsheet();
-            this.DataContext = _data;
+            _context = new SpreadSheetContext();
+            _data = new SpreadsheetDataWithDb(_context);
 
+            this.DataContext = _data;
             GenerateColumns();
             ExcelLikeGrid.ItemsSource = _data;
 
             ExcelLikeGrid.LoadingRow += ExcelLikeGrid_LoadingRow;
             this.Closing += MainWindow_Closing;
-
-            ExcelLikeGrid.SelectionChanged += (s, e) =>
-            {
-                MessageBox.Show($"Selection changed. Selected cells: {ExcelLikeGrid.SelectedCells.Count}");
-            };
         }
 
         private void AddRowButton_Click(object sender, RoutedEventArgs e)
         {
-            var newRow = new ObservableCollection<Cell>();
-            for (int j = 0; j < _data[0].Count; j++)
-            {
-                newRow.Add(new Cell());
-            }
-            _data.Add(newRow);
-
-            // Refresh row headers
-            for (int i = 0; i < _data.Count; i++)
-            {
-                var row = ExcelLikeGrid.Items[i] as ObservableCollection<Cell>;
-                if (row != null)
-                {
-                    var rowContainer = ExcelLikeGrid.ItemContainerGenerator.ContainerFromIndex(i) as DataGridRow;
-                    if (rowContainer != null)
-                    {
-                        rowContainer.Header = (i + 1).ToString();
-                    }
-                }
-            }
+            _data.AddRow();
+            UpdateRowHeaders();
         }
 
         private void AddColumnButton_Click(object sender, RoutedEventArgs e)
         {
-            int newColumnIndex = _data[0].Count;
-
-            // Add new cell to each row
-            foreach (var row in _data)
-            {
-                row.Add(new Cell());
-            }
-
-            // Add new column to DataGrid
-            var column = new DataGridTextColumn
-            {
-                Header = ((char)('A' + newColumnIndex)).ToString(),
-                Width = 100,
-                Binding = new System.Windows.Data.Binding($"[{newColumnIndex}].Value")
-                {
-                    UpdateSourceTrigger = System.Windows.Data.UpdateSourceTrigger.PropertyChanged
-                },
-                EditingElementStyle = new Style(typeof(TextBox))
-                {
-                    Setters =
-                {
-                    new Setter(TextBox.BorderThicknessProperty, new Thickness(0)),
-                    new Setter(TextBox.BackgroundProperty, Brushes.White),
-                    new Setter(TextBox.PaddingProperty, new Thickness(2))
-                }
-                }
-            };
-
-            ExcelLikeGrid.Columns.Add(column);
+            _data.AddColumn();
+            GenerateColumns();
         }
 
         private void RemoveRowButton_Click(object sender, RoutedEventArgs e)
         {
-            if (_data.Count > 1) // Keep at least one row
-            {
-                _data.RemoveAt(_data.Count - 1);
-
-                // Refresh row headers
-                for (int i = 0; i < _data.Count; i++)
-                {
-                    var row = ExcelLikeGrid.Items[i] as ObservableCollection<Cell>;
-                    if (row != null)
-                    {
-                        var rowContainer = ExcelLikeGrid.ItemContainerGenerator.ContainerFromIndex(i) as DataGridRow;
-                        if (rowContainer != null)
-                        {
-                            rowContainer.Header = (i + 1).ToString();
-                        }
-                    }
-                }
-            }
+            _data.RemoveLastRow();
+            UpdateRowHeaders();
         }
 
         private void RemoveColumnButton_Click(object sender, RoutedEventArgs e)
         {
-            if (_data[0].Count > 1) // Keep at least one column
-            {
-                // Remove last cell from each row
-                foreach (var row in _data)
-                {
-                    row.RemoveAt(row.Count - 1);
-                }
-
-                // Remove last column from DataGrid
-                ExcelLikeGrid.Columns.RemoveAt(ExcelLikeGrid.Columns.Count - 1);
-            }
+            _data.RemoveLastColumn();
+            GenerateColumns();
         }
 
         private void GenerateColumns()
@@ -171,7 +102,20 @@ namespace FuturePortfolio
 
         private void MainWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
-            SaveSpreadsheet();
+            _data.SaveToDatabase();
+            _context.Dispose();
+        }
+
+        private void UpdateRowHeaders()
+        {
+            for (int i = 0; i < _data.Count; i++)
+            {
+                var rowContainer = ExcelLikeGrid.ItemContainerGenerator.ContainerFromIndex(i) as DataGridRow;
+                if (rowContainer != null)
+                {
+                    rowContainer.Header = (i + 1).ToString();
+                }
+            }
         }
 
         private void SaveSpreadsheet()
@@ -184,29 +128,11 @@ namespace FuturePortfolio
             File.WriteAllText(SaveFilePath, jsonString);
         }
 
-        private void LoadSpreadsheet()
-        {
-            if (File.Exists(SaveFilePath))
-            {
-                var jsonString = File.ReadAllText(SaveFilePath);
-                _data = JsonSerializer.Deserialize<SpreadsheetData>(jsonString);
-            }
-            else
-            {
-                _data = new SpreadsheetData(20, 10); // Default size
-            }
-        }
-
-        private void ExcelLikeGrid_LoadingRow(object sender, DataGridRowEventArgs e)
+        private void ExcelLikeGrid_LoadingRow(object? sender, DataGridRowEventArgs e)
         {
             e.Row.Header = (e.Row.GetIndex() + 1).ToString();
         }
 
-        public void ApplyFormatToCell(int row, int column, CellFormat format)
-        {
-            var cell = _data.GetCell(row, column);
-            cell.Format = format;
-        }
 
         private void ExcelLikeGrid_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
         {
@@ -224,50 +150,6 @@ namespace FuturePortfolio
             }
         }
 
-        private void ExcelLikeGrid_SelectedCellsChanged(object sender, SelectedCellsChangedEventArgs e)
-        {
-            if (ExcelLikeGrid.SelectedCells.Count > 0)
-            {
-                var cellInfo = ExcelLikeGrid.SelectedCells[0];
-                var row = cellInfo.Item as ObservableCollection<Cell>;
-                var column = cellInfo.Column.DisplayIndex;
-                _selectedCell = row[column];
-            }
-            else
-            {
-                _selectedCell = null;
-            }
-        }
-
-        private void BoldButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (_selectedCell != null)
-            {
-                _selectedCell.Format ??= new CellFormat();
-                _selectedCell.Format.FontWeight = _selectedCell.Format.FontWeight == FontWeights.Bold ? FontWeights.Normal : FontWeights.Bold;
-                RefreshCell();
-            }
-        }
-
-        private void ItalicButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (_selectedCell != null)
-            {
-                _selectedCell.Format ??= new CellFormat();
-                _selectedCell.Format.FontStyle = _selectedCell.Format.FontStyle == FontStyles.Italic ? FontStyles.Normal : FontStyles.Italic;
-                RefreshCell();
-            }
-        }
-
-        private void ColorButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (_selectedCell != null)
-            {
-                _selectedCell.Format ??= new CellFormat();
-                _selectedCell.Format.ForegroundColor = _selectedCell.Format.ForegroundColor == Colors.Red ? Colors.Black : Colors.Red;
-                RefreshCell();
-            }
-        }
 
         private void RefreshCell()
         {
@@ -306,71 +188,6 @@ namespace FuturePortfolio
     }
 }
 
-public class Cell : INotifyPropertyChanged
-{
-    private string _value;
-    private string _formula;
-    private CellFormat _format;
-
-    [JsonPropertyName("Value")]
-    public string Value
-    {
-        get => _value;
-        set
-        {
-            _value = value;
-            OnPropertyChanged(nameof(Value));
-        }
-    }
-
-    public string Formula
-    {
-        get => _formula;
-        set
-        {
-            _formula = value;
-            OnPropertyChanged(nameof(Formula));
-        }
-    }
-
-    public CellFormat Format
-    {
-        get => _format;
-        set
-        {
-            _format = value;
-            OnPropertyChanged(nameof(Format));
-        }
-    }
-
-    public Cell()
-    {
-        Format = new CellFormat();
-    }
-
-    public event PropertyChangedEventHandler PropertyChanged;
-
-    protected virtual void OnPropertyChanged(string propertyName)
-    {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-    }
-}
-
-public class CellFormat : INotifyPropertyChanged
-{
-    public FontStyle FontStyle { get; set; } = FontStyles.Normal;
-    public FontWeight FontWeight { get; set; } = FontWeights.Normal;
-    public Color ForegroundColor { get; set; } = Colors.Black;
-    public Color BackgroundColor { get; set; } = Colors.White;
-
-    public event PropertyChangedEventHandler PropertyChanged;
-
-    protected virtual void OnPropertyChanged(string propertyName)
-    {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-    }
-}
-
 public class SpreadsheetData : ObservableCollection<ObservableCollection<Cell>>
 {
     [JsonConstructor]
@@ -397,27 +214,5 @@ public class SpreadsheetData : ObservableCollection<ObservableCollection<Cell>>
     public void SetCellValue(int row, int column, string value)
     {
         this[row][column].Value = value;
-    }
-}
-
-public static class FormulaCalculator
-{
-    public static string CalculateFormula(string formula)
-    {
-        if (string.IsNullOrWhiteSpace(formula) || !formula.StartsWith("="))
-            return formula;
-
-        formula = formula.Substring(1);
-
-        try
-        {
-            DataTable dt = new DataTable();
-            var result = dt.Compute(formula, "");
-            return result.ToString();
-        }
-        catch (Exception ex)
-        {
-            return $"Error: {ex.Message}";
-        }
     }
 }
