@@ -4,6 +4,10 @@ using System.Windows;
 using System.Windows.Media;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Color = System.Windows.Media.Color;
+using ColorConverter = System.Windows.Media.ColorConverter;
+using FontStyle = System.Windows.FontStyle;
+
 
 namespace FuturePortfolio.Data
 {

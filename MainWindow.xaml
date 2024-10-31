@@ -43,11 +43,33 @@
         </Grid.RowDefinitions>
         <ToolBar Grid.Row="0">
 
-            
+            <ToggleButton x:Name="BoldButton" Click="BoldButton_Click" Padding="5,2" ToolTip="Bold">
+                <TextBlock Text="B" FontWeight="Bold"/>
+            </ToggleButton>
+            <ToggleButton x:Name="ItalicButton" Click="ItalicButton_Click" Padding="5,2" ToolTip="Italic">
+                <TextBlock Text="I" FontStyle="Italic"/>
+            </ToggleButton>
             
             <Separator/>
 
-            
+            <Button x:Name="TextColorButton" Click="TextColorButton_Click" Padding="5,2" ToolTip="Text Color">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="A" Margin="0,0,5,0"/>
+                    <Rectangle Width="16" Height="16" Stroke="Black" StrokeThickness="1">
+                        <Rectangle.Fill>
+                            <SolidColorBrush x:Name="TextColorIndicator" Color="Black"/>
+                        </Rectangle.Fill>
+                    </Rectangle>
+                </StackPanel>
+            </Button>
+
+            <Button x:Name="BackgroundColorButton" Click="BackgroundColorButton_Click" Padding="5,2" ToolTip="Cell Color">
+                <Rectangle Width="16" Height="16" Stroke="Black" StrokeThickness="1">
+                    <Rectangle.Fill>
+                        <SolidColorBrush x:Name="BackgroundColorIndicator" Color="White"/>
+                    </Rectangle.Fill>
+                </Rectangle>
+            </Button>
 
             <Button x:Name="AddRowButton" Content="Add Row" Click="AddRowButton_Click" Padding="5,2"/>
             <Button x:Name="AddColumnButton" Content="Add Column" Click="AddColumnButton_Click" Padding="5,2"/>
@@ -60,6 +82,7 @@
                       EnableColumnVirtualization="True"
                       EnableRowVirtualization="True"
                       CellEditEnding="ExcelLikeGrid_CellEditEnding"
+                      SelectionChanged="ExcelLikeGrid_SelectionChanged"
                       HeadersVisibility="All"
                       SelectionUnit="Cell"
                       SelectionMode="Single"

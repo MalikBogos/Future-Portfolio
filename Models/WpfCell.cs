@@ -6,6 +6,8 @@ using System.Windows.Media;
 using System.Linq;
 using FuturePortfolio.Data;
 using Microsoft.EntityFrameworkCore;
+using Color = System.Windows.Media.Color;
+using FontStyle = System.Windows.FontStyle;
 
 namespace FuturePortfolio.Models
 {
@@ -61,6 +63,7 @@ namespace FuturePortfolio.Models
         }
     }
 
+    // WPF CellFormat Model
     public class WpfCellFormat : INotifyPropertyChanged
     {
         private FontStyle _fontStyle = FontStyles.Normal;
@@ -106,6 +109,33 @@ namespace FuturePortfolio.Models
                 _backgroundColor = value;
                 OnPropertyChanged(nameof(BackgroundColor));
             }
+        }
+
+        // Getter methods
+        public FontStyle GetFontStyle() => FontStyle;
+        public FontWeight GetFontWeight() => FontWeight;
+        public Color GetForegroundColor() => ForegroundColor;
+        public Color GetBackgroundColor() => BackgroundColor;
+
+        // Setter methods
+        public void SetFontStyle(FontStyle style)
+        {
+            FontStyle = style;
+        }
+
+        public void SetFontWeight(FontWeight weight)
+        {
+            FontWeight = weight;
+        }
+
+        public void SetForegroundColor(Color color)
+        {
+            ForegroundColor = color;
+        }
+
+        public void SetBackgroundColor(Color color)
+        {
+            BackgroundColor = color;
         }
 
         public event PropertyChangedEventHandler PropertyChanged;
@@ -189,21 +219,25 @@ namespace FuturePortfolio.Models
 
         private void LoadFromDatabase()
         {
+            // Load cells with explicit format inclusion
             var cells = _context.Cells
-                .Include(c => c.Format) 
-                .AsNoTracking() 
+                .Include(c => c.Format)  // Ensure format is loaded
+                .AsNoTracking()  // Improve performance for read-only data
                 .OrderBy(c => c.RowIndex)
                 .ThenBy(c => c.ColumnIndex)
                 .ToList();
 
+            // Find max row and column indices
             int maxRow = cells.Any() ? cells.Max(c => c.RowIndex) : 0;
             int maxCol = cells.Any() ? cells.Max(c => c.ColumnIndex) : 0;
 
+            // Create matrix with default cells
             for (int i = 0; i <= maxRow; i++)
             {
                 var wpfRow = new ObservableCollection<WpfCell>();
                 for (int j = 0; j <= maxCol; j++)
                 {
+                    // Find existing cell or create new one
                     var dbCell = cells.FirstOrDefault(c => c.RowIndex == i && c.ColumnIndex == j);
                     if (dbCell == null)
                     {
@@ -211,7 +245,7 @@ namespace FuturePortfolio.Models
                         {
                             RowIndex = i,
                             ColumnIndex = j,
-                            Format = new CellFormat()
+                            Format = new CellFormat()  // Create default format
                         };
                     }
                     wpfRow.Add(DataConverter.ToWpfCell(dbCell));
@@ -251,6 +285,7 @@ namespace FuturePortfolio.Models
             }
             catch (Exception ex)
             {
+                // Handle the exception as needed, logging or rethrowing
                 throw;
             }
         }
@@ -266,7 +301,7 @@ namespace FuturePortfolio.Models
                 {
                     RowIndex = Count,
                     ColumnIndex = j,
-                    Format = new WpfCellFormat()
+                    Format = new WpfCellFormat()  // Ensure format is initialized
                 });
             }
             Add(newRow);
@@ -282,7 +317,7 @@ namespace FuturePortfolio.Models
                 {
                     RowIndex = this.IndexOf(row),
                     ColumnIndex = newColumnIndex,
-                    Format = new WpfCellFormat()
+                    Format = new WpfCellFormat()  // Ensure format is initialized
                 });
             }
         }

@@ -11,6 +11,11 @@ using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using FuturePortfolio.Models;
 using FuturePortfolio.Data;
+using System.Windows.Controls.Primitives;
+using System.Windows.Forms;
+using TextBox = System.Windows.Controls.TextBox;
+using Brushes = System.Windows.Media.Brushes;
+using Color = System.Windows.Media.Color;
 
 
 namespace FuturePortfolio
@@ -49,6 +54,95 @@ namespace FuturePortfolio
             this.Closing += MainWindow_Closing;
         }
 
+        private void ExcelLikeGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            var cell = ExcelLikeGrid.CurrentCell;
+            if (cell != null && cell.Item != null)
+            {
+                var row = ExcelLikeGrid.Items.IndexOf(cell.Item);
+                var column = cell.Column.DisplayIndex;
+                _selectedCell = _data[row][column];
+
+                // Update formatting button states
+                UpdateFormattingButtonStates();
+            }
+        }
+
+        private void UpdateFormattingButtonStates()
+        {
+            if (_selectedCell?.Format != null)
+            {
+                BoldButton.IsChecked = _selectedCell.Format.GetFontWeight() == FontWeights.Bold;
+                ItalicButton.IsChecked = _selectedCell.Format.GetFontStyle() == FontStyles.Italic;
+                TextColorIndicator.Color = _selectedCell.Format.GetForegroundColor();
+                BackgroundColorIndicator.Color = _selectedCell.Format.GetBackgroundColor();
+            }
+        }
+
+        private void BoldButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedCell?.Format != null)
+            {
+                var newWeight = ((ToggleButton)sender).IsChecked == true ? FontWeights.Bold : FontWeights.Normal;
+                _selectedCell.Format.SetFontWeight(newWeight);
+                RefreshCell();
+            }
+        }
+
+        private void ItalicButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedCell?.Format != null)
+            {
+                var newStyle = ((ToggleButton)sender).IsChecked == true ? FontStyles.Italic : FontStyles.Normal;
+                _selectedCell.Format.SetFontStyle(newStyle);
+                RefreshCell();
+            }
+        }
+
+        private void TextColorButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedCell?.Format != null)
+            {
+                var dialog = new System.Windows.Forms.ColorDialog
+                {
+                    Color = System.Drawing.Color.FromArgb(
+                        _selectedCell.Format.ForegroundColor.R,
+                        _selectedCell.Format.ForegroundColor.G,
+                        _selectedCell.Format.ForegroundColor.B)
+                };
+
+                if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                {
+                    var wpfColor = System.Windows.Media.Color.FromRgb(dialog.Color.R, dialog.Color.G, dialog.Color.B);
+                    _selectedCell.Format.ForegroundColor = wpfColor;
+                    TextColorIndicator.Color = wpfColor;
+                    RefreshCell();
+                }
+            }
+        }
+
+
+        private void BackgroundColorButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedCell?.Format != null)
+            {
+                var dialog = new System.Windows.Forms.ColorDialog
+                {
+                    Color = System.Drawing.Color.FromArgb(
+                        _selectedCell.Format.GetBackgroundColor().R,
+                        _selectedCell.Format.GetBackgroundColor().G,
+                        _selectedCell.Format.GetBackgroundColor().B)
+                };
+
+                if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                {
+                    var wpfColor = Color.FromRgb(dialog.Color.R, dialog.Color.G, dialog.Color.B);
+                    _selectedCell.Format.SetBackgroundColor(wpfColor);
+                    BackgroundColorIndicator.Color = wpfColor;
+                    RefreshCell();
+                }
+            }
+        }
 
         private void AddRowButton_Click(object sender, RoutedEventArgs e)
         {
