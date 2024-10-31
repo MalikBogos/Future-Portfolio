@@ -63,7 +63,6 @@ namespace FuturePortfolio.Models
         }
     }
 
-    // WPF CellFormat Model
     public class WpfCellFormat : INotifyPropertyChanged
     {
         private FontStyle _fontStyle = FontStyles.Normal;
@@ -111,13 +110,11 @@ namespace FuturePortfolio.Models
             }
         }
 
-        // Getter methods
         public FontStyle GetFontStyle() => FontStyle;
         public FontWeight GetFontWeight() => FontWeight;
         public Color GetForegroundColor() => ForegroundColor;
         public Color GetBackgroundColor() => BackgroundColor;
 
-        // Setter methods
         public void SetFontStyle(FontStyle style)
         {
             FontStyle = style;
@@ -146,7 +143,6 @@ namespace FuturePortfolio.Models
         }
     }
 
-    // Data Transfer Objects (DTO) Converter
     public static class DataConverter
     {
         public static WpfCell ToWpfCell(Cell dbCell)
@@ -206,7 +202,6 @@ namespace FuturePortfolio.Models
         }
     }
 
-    // SpreadsheetData with database support
     public class SpreadsheetDataWithDb : ObservableCollection<ObservableCollection<WpfCell>>
     {
         private readonly SpreadSheetContext _context;
@@ -219,25 +214,21 @@ namespace FuturePortfolio.Models
 
         private void LoadFromDatabase()
         {
-            // Load cells with explicit format inclusion
             var cells = _context.Cells
-                .Include(c => c.Format)  // Ensure format is loaded
-                .AsNoTracking()  // Improve performance for read-only data
+                .Include(c => c.Format)
+                .AsNoTracking()
                 .OrderBy(c => c.RowIndex)
                 .ThenBy(c => c.ColumnIndex)
                 .ToList();
 
-            // Find max row and column indices
             int maxRow = cells.Any() ? cells.Max(c => c.RowIndex) : 0;
             int maxCol = cells.Any() ? cells.Max(c => c.ColumnIndex) : 0;
 
-            // Create matrix with default cells
             for (int i = 0; i <= maxRow; i++)
             {
                 var wpfRow = new ObservableCollection<WpfCell>();
                 for (int j = 0; j <= maxCol; j++)
                 {
-                    // Find existing cell or create new one
                     var dbCell = cells.FirstOrDefault(c => c.RowIndex == i && c.ColumnIndex == j);
                     if (dbCell == null)
                     {
@@ -245,7 +236,7 @@ namespace FuturePortfolio.Models
                         {
                             RowIndex = i,
                             ColumnIndex = j,
-                            Format = new CellFormat()  // Create default format
+                            Format = new CellFormat()
                         };
                     }
                     wpfRow.Add(DataConverter.ToWpfCell(dbCell));
@@ -261,12 +252,10 @@ namespace FuturePortfolio.Models
             _context.SaveChanges(); 
             try
             {
-                // Remove existing cells and their formats
                 _context.CellFormats.RemoveRange(_context.CellFormats);
                 _context.Cells.RemoveRange(_context.Cells);
                 _context.SaveChanges();
 
-                // Add current cells
                 for (int rowIndex = 0; rowIndex < Count; rowIndex++)
                 {
                     for (int colIndex = 0; colIndex < this[rowIndex].Count; colIndex++)
@@ -285,7 +274,6 @@ namespace FuturePortfolio.Models
             }
             catch (Exception ex)
             {
-                // Handle the exception as needed, logging or rethrowing
                 throw;
             }
         }
@@ -301,7 +289,7 @@ namespace FuturePortfolio.Models
                 {
                     RowIndex = Count,
                     ColumnIndex = j,
-                    Format = new WpfCellFormat()  // Ensure format is initialized
+                    Format = new WpfCellFormat()
                 });
             }
             Add(newRow);
@@ -317,7 +305,7 @@ namespace FuturePortfolio.Models
                 {
                     RowIndex = this.IndexOf(row),
                     ColumnIndex = newColumnIndex,
-                    Format = new WpfCellFormat()  // Ensure format is initialized
+                    Format = new WpfCellFormat()
                 });
             }
         }

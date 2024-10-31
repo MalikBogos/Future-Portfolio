@@ -63,7 +63,6 @@ namespace FuturePortfolio
                 var column = cell.Column.DisplayIndex;
                 _selectedCell = _data[row][column];
 
-                // Update formatting button states
                 UpdateFormattingButtonStates();
             }
         }
@@ -72,10 +71,12 @@ namespace FuturePortfolio
         {
             if (_selectedCell?.Format != null)
             {
-                BoldButton.IsChecked = _selectedCell.Format.GetFontWeight() == FontWeights.Bold;
-                ItalicButton.IsChecked = _selectedCell.Format.GetFontStyle() == FontStyles.Italic;
-                TextColorIndicator.Color = _selectedCell.Format.GetForegroundColor();
-                BackgroundColorIndicator.Color = _selectedCell.Format.GetBackgroundColor();
+                Dispatcher.Invoke(() => {
+                    BoldButton.IsChecked = _selectedCell.Format.FontWeight == FontWeights.Bold;
+                    ItalicButton.IsChecked = _selectedCell.Format.FontStyle == FontStyles.Italic;
+                    TextColorIndicator.Color = _selectedCell.Format.ForegroundColor;
+                    BackgroundColorIndicator.Color = _selectedCell.Format.BackgroundColor;
+                });
             }
         }
 
@@ -83,9 +84,13 @@ namespace FuturePortfolio
         {
             if (_selectedCell?.Format != null)
             {
-                var newWeight = ((ToggleButton)sender).IsChecked == true ? FontWeights.Bold : FontWeights.Normal;
-                _selectedCell.Format.SetFontWeight(newWeight);
-                RefreshCell();
+                _selectedCell.Format.FontWeight = ((ToggleButton)sender).IsChecked == true ?
+                    FontWeights.Bold : FontWeights.Normal;
+
+                Dispatcher.Invoke(() => {
+                    ExcelLikeGrid.Items.Refresh();
+                    UpdateFormattingButtonStates();
+                });
             }
         }
 
@@ -93,9 +98,13 @@ namespace FuturePortfolio
         {
             if (_selectedCell?.Format != null)
             {
-                var newStyle = ((ToggleButton)sender).IsChecked == true ? FontStyles.Italic : FontStyles.Normal;
-                _selectedCell.Format.SetFontStyle(newStyle);
-                RefreshCell();
+                _selectedCell.Format.FontStyle = ((ToggleButton)sender).IsChecked == true ?
+                    FontStyles.Italic : FontStyles.Normal;
+
+                Dispatcher.Invoke(() => {
+                    ExcelLikeGrid.Items.Refresh();
+                    UpdateFormattingButtonStates();
+                });
             }
         }
 
@@ -113,7 +122,10 @@ namespace FuturePortfolio
 
                 if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
                 {
-                    var wpfColor = System.Windows.Media.Color.FromRgb(dialog.Color.R, dialog.Color.G, dialog.Color.B);
+                    var wpfColor = System.Windows.Media.Color.FromRgb(
+                        dialog.Color.R,
+                        dialog.Color.G,
+                        dialog.Color.B);
                     _selectedCell.Format.ForegroundColor = wpfColor;
                     TextColorIndicator.Color = wpfColor;
                     RefreshCell();
@@ -129,15 +141,18 @@ namespace FuturePortfolio
                 var dialog = new System.Windows.Forms.ColorDialog
                 {
                     Color = System.Drawing.Color.FromArgb(
-                        _selectedCell.Format.GetBackgroundColor().R,
-                        _selectedCell.Format.GetBackgroundColor().G,
-                        _selectedCell.Format.GetBackgroundColor().B)
+                        _selectedCell.Format.BackgroundColor.R,
+                        _selectedCell.Format.BackgroundColor.G,
+                        _selectedCell.Format.BackgroundColor.B)
                 };
 
                 if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
                 {
-                    var wpfColor = Color.FromRgb(dialog.Color.R, dialog.Color.G, dialog.Color.B);
-                    _selectedCell.Format.SetBackgroundColor(wpfColor);
+                    var wpfColor = Color.FromRgb(
+                        dialog.Color.R,
+                        dialog.Color.G,
+                        dialog.Color.B);
+                    _selectedCell.Format.BackgroundColor = wpfColor;
                     BackgroundColorIndicator.Color = wpfColor;
                     RefreshCell();
                 }

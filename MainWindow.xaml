@@ -7,34 +7,33 @@
             mc:Ignorable="d"
             Title="DoWell" Height="450" Width="800">
     <Window.Resources>
+        <local:ColorToBrushConverter x:Key="ColorToBrushConverter"/>
+
         <local:CellTemplateSelector x:Key="CellTemplateSelector">
             <local:CellTemplateSelector.DefaultTemplate>
                 <DataTemplate>
                     <TextBlock Text="{Binding Value}"
-              FontStyle="{Binding Format.FontStyle, UpdateSourceTrigger=PropertyChanged}"
-              FontWeight="{Binding Format.FontWeight, UpdateSourceTrigger=PropertyChanged}"
-              Foreground="{Binding Format.ForegroundColor, UpdateSourceTrigger=PropertyChanged}"
-              Background="{Binding Format.BackgroundColor, UpdateSourceTrigger=PropertyChanged}"
-              Padding="5,2"/>
+                             FontStyle="{Binding Format.FontStyle}"
+                             FontWeight="{Binding Format.FontWeight}"
+                             Foreground="{Binding Format.ForegroundColor, Converter={StaticResource ColorToBrushConverter}}"
+                             Background="{Binding Format.BackgroundColor, Converter={StaticResource ColorToBrushConverter}}"
+                             Padding="5,2"/>
                 </DataTemplate>
             </local:CellTemplateSelector.DefaultTemplate>
             <local:CellTemplateSelector.EditingTemplate>
                 <DataTemplate>
-                    <TextBlock Text="{Binding Value}"
-              FontStyle="{Binding Format.FontStyle, UpdateSourceTrigger=PropertyChanged}"
-              FontWeight="{Binding Format.FontWeight, UpdateSourceTrigger=PropertyChanged}"
-              Foreground="{Binding Format.ForegroundColor, UpdateSourceTrigger=PropertyChanged}"
-              Background="{Binding Format.BackgroundColor, UpdateSourceTrigger=PropertyChanged}"
-              Padding="5,2"/>
+                    <TextBox Text="{Binding Value, UpdateSourceTrigger=LostFocus}"
+                            FontStyle="{Binding Format.FontStyle}"
+                            FontWeight="{Binding Format.FontWeight}"
+                            Foreground="{Binding Format.ForegroundColor, Converter={StaticResource ColorToBrushConverter}}"
+                            Background="{Binding Format.BackgroundColor, Converter={StaticResource ColorToBrushConverter}}"
+                            BorderThickness="0"
+                            Padding="5,2"/>
                 </DataTemplate>
             </local:CellTemplateSelector.EditingTemplate>
         </local:CellTemplateSelector>
-
-        <DataTemplate x:Key="CellTemplate">
-            <ContentPresenter Content="{Binding}"
-                              ContentTemplateSelector="{StaticResource CellTemplateSelector}"/>
-        </DataTemplate>
     </Window.Resources>
+
 
     <Grid>
         <Grid.RowDefinitions>
@@ -49,24 +48,24 @@
             <ToggleButton x:Name="ItalicButton" Click="ItalicButton_Click" Padding="5,2" ToolTip="Italic">
                 <TextBlock Text="I" FontStyle="Italic"/>
             </ToggleButton>
-            
+
             <Separator/>
 
             <Button x:Name="TextColorButton" Click="TextColorButton_Click" Padding="5,2" ToolTip="Text Color">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="A" Margin="0,0,5,0"/>
-                    <Rectangle Width="16" Height="16" Stroke="Black" StrokeThickness="1">
+                    <Rectangle Width="16" Height="16" Stroke="Red" StrokeThickness="1">
                         <Rectangle.Fill>
-                            <SolidColorBrush x:Name="TextColorIndicator" Color="Black"/>
+                            <SolidColorBrush x:Name="TextColorIndicator" Color="Red"/>
                         </Rectangle.Fill>
                     </Rectangle>
                 </StackPanel>
             </Button>
 
             <Button x:Name="BackgroundColorButton" Click="BackgroundColorButton_Click" Padding="5,2" ToolTip="Cell Color">
-                <Rectangle Width="16" Height="16" Stroke="Black" StrokeThickness="1">
+                <Rectangle Width="16" Height="16" Stroke="Blue" StrokeThickness="1">
                     <Rectangle.Fill>
-                        <SolidColorBrush x:Name="BackgroundColorIndicator" Color="White"/>
+                        <SolidColorBrush x:Name="BackgroundColorIndicator" Color="Blue"/>
                     </Rectangle.Fill>
                 </Rectangle>
             </Button>
