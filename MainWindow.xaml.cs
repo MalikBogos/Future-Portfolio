@@ -16,10 +16,33 @@ using System.Windows.Forms;
 using TextBox = System.Windows.Controls.TextBox;
 using Brushes = System.Windows.Media.Brushes;
 using Color = System.Windows.Media.Color;
+using System.Globalization;
+using System.Windows.Data;
 
 
 namespace FuturePortfolio
 {
+
+    public class ColorToBrushConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is Color color)
+            {
+                return new SolidColorBrush(color);
+            }
+            return null;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is SolidColorBrush brush)
+            {
+                return brush.Color;
+            }
+            return Colors.Black;
+        }
+    }
     public class CellTemplateSelector : DataTemplateSelector
     {
         public required DataTemplate DefaultTemplate { get; set; }
@@ -53,6 +76,8 @@ namespace FuturePortfolio
             ExcelLikeGrid.LoadingRow += ExcelLikeGrid_LoadingRow;
             this.Closing += MainWindow_Closing;
         }
+
+        
 
         private void ExcelLikeGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
