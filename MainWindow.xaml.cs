@@ -1,37 +1,17 @@
-﻿using System;
-using System.Collections.ObjectModel;
-using System.ComponentModel;
+﻿
 using System.Windows;
-using System.Windows.Media;
 using System.IO;
 using System.Windows.Controls;
 using System.Data;
 using System.Text.Json;
-using System.Text.Json.Serialization;
-using Microsoft.EntityFrameworkCore;
 using FuturePortfolio.Data;
-using System.Windows.Controls.Primitives;
 using TextBox = System.Windows.Controls.TextBox;
 using Brushes = System.Windows.Media.Brushes;
-using Color = System.Windows.Media.Color;
-using System.Globalization;
-using System.Windows.Data;
 using static FuturePortfolio.Data.SpreadSheetContext;
 
 
 namespace FuturePortfolio
 {
-    public class CellTemplateSelector : DataTemplateSelector
-    {
-        public required DataTemplate DefaultTemplate { get; set; }
-        public required DataTemplate EditingTemplate { get; set; }
-
-        public override DataTemplate SelectTemplate(object item, DependencyObject container)
-        {
-            var cell = container as DataGridCell;
-            return cell != null && cell.IsEditing ? EditingTemplate : DefaultTemplate;
-        }
-    }
 
     public partial class MainWindow : Window
     {
@@ -169,14 +149,6 @@ namespace FuturePortfolio
                     UpdateCellValue(row, column, newValue);
                 }
             }
-        }
-
-
-
-
-        private void RefreshCell()
-        {
-            ExcelLikeGrid.Items.Refresh();
         }
 
         private void UpdateCellValue(int row, int column, string newValue)

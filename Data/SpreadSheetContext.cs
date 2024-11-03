@@ -1,18 +1,13 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
-using System.Text;
-using System.Text.Json.Serialization;
-using System.Threading.Tasks;
 
 namespace FuturePortfolio.Data
 {
     public class SpreadSheetContext : DbContext
     {
         public DbSet<Cell> Cells { get; set; }
-        public DbSet<CellFormat> CellFormats { get; set; }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
@@ -30,79 +25,12 @@ namespace FuturePortfolio.Data
             modelBuilder.Entity<Cell>(entity =>
             {
                 entity.HasKey(e => e.Id);
-
-                entity.Property(e => e.RowIndex)
-                      .IsRequired();
-
-                entity.Property(e => e.ColumnIndex)
-                      .IsRequired();
-
-                entity.Property(e => e.Value)
-                      .IsRequired(false);
-
-                entity.Property(e => e.Formula)
-                      .IsRequired(false);
-
+                entity.Property(e => e.RowIndex).IsRequired();
+                entity.Property(e => e.ColumnIndex).IsRequired();
+                entity.Property(e => e.Value).IsRequired(false);
+                entity.Property(e => e.Formula).IsRequired(false);
                 entity.HasIndex(e => new { e.RowIndex, e.ColumnIndex });
-
-                entity.HasOne(c => c.Format)
-                      .WithOne(f => f.Cell)
-                      .HasForeignKey<CellFormat>(f => f.CellId)
-                      .OnDelete(DeleteBehavior.Cascade);
             });
-
-            modelBuilder.Entity<CellFormat>(entity =>
-            {
-                entity.HasKey(e => e.Id);
-
-                entity.Property(e => e.FontStyleString)
-                      .HasDefaultValue("Normal")
-                      .IsRequired()
-                      .HasMaxLength(50);
-
-                entity.Property(e => e.FontWeightValue)
-                      .HasDefaultValue(4.0)
-                      .IsRequired();
-
-                entity.Property(e => e.ForegroundColorHex)
-                      .HasDefaultValue("#000000")
-                      .IsRequired()
-                      .HasMaxLength(50);
-
-                entity.Property(e => e.BackgroundColorHex)
-                      .HasDefaultValue("#FFFFFF")
-                      .IsRequired()
-                      .HasMaxLength(50);
-            });
-        }
-
-        public class SpreadsheetData : ObservableCollection<ObservableCollection<Cell>>
-        {
-            [JsonConstructor]
-            public SpreadsheetData() { }
-
-            public SpreadsheetData(int rows, int columns)
-            {
-                for (int i = 0; i < rows; i++)
-                {
-                    var row = new ObservableCollection<Cell>();
-                    for (int j = 0; j < columns; j++)
-                    {
-                        row.Add(new Cell());
-                    }
-                    Add(row);
-                }
-            }
-
-            public Cell GetCell(int row, int column)
-            {
-                return this[row][column];
-            }
-
-            public void SetCellValue(int row, int column, string value)
-            {
-                this[row][column].Value = value;
-            }
         }
 
         public class SpreadsheetDataWithDb : ObservableCollection<ObservableCollection<WpfCell>>
@@ -118,7 +46,6 @@ namespace FuturePortfolio.Data
             private void LoadFromDatabase()
             {
                 var cells = _context.Cells
-                    .Include(c => c.Format)
                     .AsNoTracking()
                     .OrderBy(c => c.RowIndex)
                     .ThenBy(c => c.ColumnIndex)
@@ -127,22 +54,25 @@ namespace FuturePortfolio.Data
                 int maxRow = cells.Any() ? cells.Max(c => c.RowIndex) : 0;
                 int maxCol = cells.Any() ? cells.Max(c => c.ColumnIndex) : 0;
 
+                // Ensure at least one row and column
+                maxRow = Math.Max(maxRow, 0);
+                maxCol = Math.Max(maxCol, 0);
+
                 for (int i = 0; i <= maxRow; i++)
                 {
                     var wpfRow = new ObservableCollection<WpfCell>();
                     for (int j = 0; j <= maxCol; j++)
                     {
                         var dbCell = cells.FirstOrDefault(c => c.RowIndex == i && c.ColumnIndex == j);
-                        if (dbCell == null)
+                        var wpfCell = new WpfCell
                         {
-                            dbCell = new Cell
-                            {
-                                RowIndex = i,
-                                ColumnIndex = j,
-                                Format = new CellFormat()
-                            };
-                        }
-                        wpfRow.Add(DataConverter.ToWpfCell(dbCell));
+                            Id = dbCell?.Id ?? 0,
+                            RowIndex = i,
+                            ColumnIndex = j,
+                            Value = dbCell?.Value ?? "",
+                            Formula = dbCell?.Formula
+                        };
+                        wpfRow.Add(wpfCell);
                     }
                     Add(wpfRow);
                 }
@@ -150,35 +80,35 @@ namespace FuturePortfolio.Data
 
             public void SaveToDatabase()
             {
-                _context.CellFormats.RemoveRange(_context.CellFormats);
+                // Clear existing cells
                 _context.Cells.RemoveRange(_context.Cells);
                 _context.SaveChanges();
-                try
-                {
-                    _context.CellFormats.RemoveRange(_context.CellFormats);
-                    _context.Cells.RemoveRange(_context.Cells);
-                    _context.SaveChanges();
 
-                    for (int rowIndex = 0; rowIndex < Count; rowIndex++)
+                // Create new cells from WpfCells
+                var cellsToAdd = new List<Cell>();
+
+                for (int rowIndex = 0; rowIndex < Count; rowIndex++)
+                {
+                    for (int colIndex = 0; colIndex < this[rowIndex].Count; colIndex++)
                     {
-                        for (int colIndex = 0; colIndex < this[rowIndex].Count; colIndex++)
+                        var wpfCell = this[rowIndex][colIndex];
+                        if (!string.IsNullOrEmpty(wpfCell.Value) || !string.IsNullOrEmpty(wpfCell.Formula))
                         {
-                            var wpfCell = this[rowIndex][colIndex];
-                            if (!string.IsNullOrEmpty(wpfCell.Value) || !string.IsNullOrEmpty(wpfCell.Formula))
+                            var cell = new Cell
                             {
-                                wpfCell.RowIndex = rowIndex;
-                                wpfCell.ColumnIndex = colIndex;
-                                var dbCell = DataConverter.ToDbCell(wpfCell);
-                                _context.Cells.Add(dbCell);
-                            }
+                                RowIndex = rowIndex,
+                                ColumnIndex = colIndex,
+                                Value = wpfCell.Value,
+                                Formula = wpfCell.Formula
+                            };
+                            cellsToAdd.Add(cell);
                         }
                     }
-                    _context.SaveChanges();
                 }
-                catch (Exception ex)
-                {
-                    throw;
-                }
+
+                // Add all new cells at once
+                _context.Cells.AddRange(cellsToAdd);
+                _context.SaveChanges();
             }
 
             public void AddRow()
@@ -192,7 +122,6 @@ namespace FuturePortfolio.Data
                     {
                         RowIndex = Count,
                         ColumnIndex = j,
-                        Format = new WpfCellFormat()
                     });
                 }
                 Add(newRow);
@@ -208,7 +137,6 @@ namespace FuturePortfolio.Data
                     {
                         RowIndex = this.IndexOf(row),
                         ColumnIndex = newColumnIndex,
-                        Format = new WpfCellFormat()
                     });
                 }
             }
@@ -233,6 +161,4 @@ namespace FuturePortfolio.Data
             }
         }
     }
-
-
 }
