@@ -9,40 +9,18 @@ using System.Data;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
-using FuturePortfolio.Models;
 using FuturePortfolio.Data;
 using System.Windows.Controls.Primitives;
-using System.Windows.Forms;
 using TextBox = System.Windows.Controls.TextBox;
 using Brushes = System.Windows.Media.Brushes;
 using Color = System.Windows.Media.Color;
 using System.Globalization;
 using System.Windows.Data;
+using static FuturePortfolio.Data.SpreadSheetContext;
 
 
 namespace FuturePortfolio
 {
-
-    public class ColorToBrushConverter : IValueConverter
-    {
-        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            if (value is Color color)
-            {
-                return new SolidColorBrush(color);
-            }
-            return null;
-        }
-
-        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            if (value is SolidColorBrush brush)
-            {
-                return brush.Color;
-            }
-            return Colors.Black;
-        }
-    }
     public class CellTemplateSelector : DataTemplateSelector
     {
         public required DataTemplate DefaultTemplate { get; set; }
@@ -88,99 +66,6 @@ namespace FuturePortfolio
                 var column = cell.Column.DisplayIndex;
                 _selectedCell = _data[row][column];
 
-                UpdateFormattingButtonStates();
-            }
-        }
-
-        private void UpdateFormattingButtonStates()
-        {
-            if (_selectedCell?.Format != null)
-            {
-                Dispatcher.Invoke(() => {
-                    BoldButton.IsChecked = _selectedCell.Format.FontWeight == FontWeights.Bold;
-                    ItalicButton.IsChecked = _selectedCell.Format.FontStyle == FontStyles.Italic;
-                    TextColorIndicator.Color = _selectedCell.Format.ForegroundColor;
-                    BackgroundColorIndicator.Color = _selectedCell.Format.BackgroundColor;
-                });
-            }
-        }
-
-        private void BoldButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (_selectedCell?.Format != null)
-            {
-                _selectedCell.Format.FontWeight = ((ToggleButton)sender).IsChecked == true ?
-                    FontWeights.Bold : FontWeights.Normal;
-
-                Dispatcher.Invoke(() => {
-                    ExcelLikeGrid.Items.Refresh();
-                    UpdateFormattingButtonStates();
-                });
-            }
-        }
-
-        private void ItalicButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (_selectedCell?.Format != null)
-            {
-                _selectedCell.Format.FontStyle = ((ToggleButton)sender).IsChecked == true ?
-                    FontStyles.Italic : FontStyles.Normal;
-
-                Dispatcher.Invoke(() => {
-                    ExcelLikeGrid.Items.Refresh();
-                    UpdateFormattingButtonStates();
-                });
-            }
-        }
-
-        private void TextColorButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (_selectedCell?.Format != null)
-            {
-                var dialog = new System.Windows.Forms.ColorDialog
-                {
-                    Color = System.Drawing.Color.FromArgb(
-                        _selectedCell.Format.ForegroundColor.R,
-                        _selectedCell.Format.ForegroundColor.G,
-                        _selectedCell.Format.ForegroundColor.B)
-                };
-
-                if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
-                {
-                    var wpfColor = System.Windows.Media.Color.FromRgb(
-                        dialog.Color.R,
-                        dialog.Color.G,
-                        dialog.Color.B);
-                    _selectedCell.Format.ForegroundColor = wpfColor;
-                    TextColorIndicator.Color = wpfColor;
-                    RefreshCell();
-                }
-            }
-        }
-
-
-        private void BackgroundColorButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (_selectedCell?.Format != null)
-            {
-                var dialog = new System.Windows.Forms.ColorDialog
-                {
-                    Color = System.Drawing.Color.FromArgb(
-                        _selectedCell.Format.BackgroundColor.R,
-                        _selectedCell.Format.BackgroundColor.G,
-                        _selectedCell.Format.BackgroundColor.B)
-                };
-
-                if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
-                {
-                    var wpfColor = Color.FromRgb(
-                        dialog.Color.R,
-                        dialog.Color.G,
-                        dialog.Color.B);
-                    _selectedCell.Format.BackgroundColor = wpfColor;
-                    BackgroundColorIndicator.Color = wpfColor;
-                    RefreshCell();
-                }
             }
         }
 
@@ -323,34 +208,5 @@ namespace FuturePortfolio
                 return $"Error: {ex.Message}";
             }
         }
-    }
-}
-
-public class SpreadsheetData : ObservableCollection<ObservableCollection<Cell>>
-{
-    [JsonConstructor]
-    public SpreadsheetData() { }
-
-    public SpreadsheetData(int rows, int columns)
-    {
-        for (int i = 0; i < rows; i++)
-        {
-            var row = new ObservableCollection<Cell>();
-            for (int j = 0; j < columns; j++)
-            {
-                row.Add(new Cell());
-            }
-            Add(row);
-        }
-    }
-
-    public Cell GetCell(int row, int column)
-    {
-        return this[row][column];
-    }
-
-    public void SetCellValue(int row, int column, string value)
-    {
-        this[row][column].Value = value;
     }
 }
