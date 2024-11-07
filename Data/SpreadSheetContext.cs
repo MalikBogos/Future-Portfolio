@@ -1,21 +1,27 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using System;
 using System.Collections.ObjectModel;
-using System.Linq;
+using System.Collections.Specialized;
 
 namespace FuturePortfolio.Data
 {
     public class SpreadSheetContext : DbContext
     {
-        public DbSet<Cell> Cells { get; set; }
+        private const int MinRows = 1;
+        private const int MinColumns = 1;
+        private const string ConnectionString = "Server=localhost;Database=DoWell;Integrated Security=True;TrustServerCertificate=True;";
+
+        public DbSet<Cell> Cells { get; set; } = null!;
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
             if (!optionsBuilder.IsConfigured)
             {
                 optionsBuilder.UseSqlServer(
-                    "Server=localhost;Database=DoWell;Integrated Security=True;TrustServerCertificate=True;",
-                    options => options.EnableRetryOnFailure()
+                    ConnectionString,
+                    options => options.EnableRetryOnFailure(
+                        maxRetryCount: 3,
+                        maxRetryDelay: TimeSpan.FromSeconds(5),
+                        errorNumbersToAdd: null)
                 );
             }
         }
@@ -25,22 +31,52 @@ namespace FuturePortfolio.Data
             modelBuilder.Entity<Cell>(entity =>
             {
                 entity.HasKey(e => e.Id);
-                entity.Property(e => e.RowIndex).IsRequired();
-                entity.Property(e => e.ColumnIndex).IsRequired();
-                entity.Property(e => e.Value).IsRequired(false);
-                entity.Property(e => e.Formula).IsRequired(false);
-                entity.HasIndex(e => new { e.RowIndex, e.ColumnIndex });
+                entity.HasIndex(e => new { e.RowIndex, e.ColumnIndex })
+                      .HasDatabaseName("IX_CellPosition")
+                      .IsUnique();
             });
         }
 
-        public class SpreadsheetDataWithDb : ObservableCollection<ObservableCollection<WpfCell>>
+        public class SpreadsheetDataWithDb : ObservableCollection<ObservableCollection<WpfCell>>, IDisposable
         {
             private readonly SpreadSheetContext _context;
+            private bool _isDisposed;
+            private readonly SemaphoreSlim _semaphore = new(1, 1);
+            private const int DefaultRowCount = 1;
+            private const int DefaultColumnCount = 5;
 
             public SpreadsheetDataWithDb(SpreadSheetContext context)
             {
-                _context = context;
+                _context = context ?? throw new ArgumentNullException(nameof(context));
+                this.CollectionChanged += HandleCollectionChanged;
                 LoadFromDatabase();
+                EnsureMinimumGrid();
+            }
+
+            private void EnsureMinimumGrid()
+            {
+                if (Count == 0)
+                {
+                    for (int i = 0; i < DefaultRowCount; i++)
+                    {
+                        var row = new ObservableCollection<WpfCell>();
+                        for (int j = 0; j < DefaultColumnCount; j++)
+                        {
+                            row.Add(CreateWpfCell(i, j));
+                        }
+                        Add(row);
+                    }
+                }
+                else if (this[0].Count == 0)
+                {
+                    for (int i = 0; i < Count; i++)
+                    {
+                        for (int j = 0; j < DefaultColumnCount; j++)
+                        {
+                            this[i].Add(CreateWpfCell(i, j));
+                        }
+                    }
+                }
             }
 
             private void LoadFromDatabase()
@@ -51,113 +87,165 @@ namespace FuturePortfolio.Data
                     .ThenBy(c => c.ColumnIndex)
                     .ToList();
 
-                int maxRow = cells.Any() ? cells.Max(c => c.RowIndex) : 0;
-                int maxCol = cells.Any() ? cells.Max(c => c.ColumnIndex) : 0;
+                var dimensions = GetGridDimensions(cells);
+                InitializeGrid(dimensions.rows, dimensions.cols, cells);
+            }
 
-                // Ensure at least one row and column
-                maxRow = Math.Max(maxRow, 0);
-                maxCol = Math.Max(maxCol, 0);
+            private (int rows, int cols) GetGridDimensions(List<Cell> cells)
+            {
+                if (!cells.Any())
+                    return (MinRows, MinColumns);
 
-                for (int i = 0; i <= maxRow; i++)
+                return (
+                    rows: Math.Max(cells.Max(c => c.RowIndex) + 1, MinRows),
+                    cols: Math.Max(cells.Max(c => c.ColumnIndex) + 1, MinColumns)
+                );
+            }
+
+            private void InitializeGrid(int rows, int cols, List<Cell> cells)
+            {
+                for (int i = 0; i < rows; i++)
                 {
                     var wpfRow = new ObservableCollection<WpfCell>();
-                    for (int j = 0; j <= maxCol; j++)
+                    wpfRow.CollectionChanged += HandleRowCollectionChanged;
+
+                    for (int j = 0; j < cols; j++)
                     {
                         var dbCell = cells.FirstOrDefault(c => c.RowIndex == i && c.ColumnIndex == j);
-                        var wpfCell = new WpfCell
-                        {
-                            Id = dbCell?.Id ?? 0,
-                            RowIndex = i,
-                            ColumnIndex = j,
-                            Value = dbCell?.Value ?? "",
-                            Formula = dbCell?.Formula
-                        };
-                        wpfRow.Add(wpfCell);
+                        wpfRow.Add(CreateWpfCell(i, j, dbCell));
                     }
                     Add(wpfRow);
                 }
             }
 
-            public void SaveToDatabase()
-            {
-                // Clear existing cells
-                _context.Cells.RemoveRange(_context.Cells);
-                _context.SaveChanges();
-
-                // Create new cells from WpfCells
-                var cellsToAdd = new List<Cell>();
-
-                for (int rowIndex = 0; rowIndex < Count; rowIndex++)
+            private WpfCell CreateWpfCell(int rowIndex, int colIndex, Cell? dbCell = null) =>
+                new()
                 {
-                    for (int colIndex = 0; colIndex < this[rowIndex].Count; colIndex++)
-                    {
-                        var wpfCell = this[rowIndex][colIndex];
-                        if (!string.IsNullOrEmpty(wpfCell.Value) || !string.IsNullOrEmpty(wpfCell.Formula))
+                    Id = dbCell?.Id ?? 0,
+                    RowIndex = rowIndex,
+                    ColumnIndex = colIndex,
+                    Value = dbCell?.Value,
+                    Formula = dbCell?.Formula
+                };
+
+            public async Task SaveToDatabaseAsync()
+            {
+                if (_isDisposed)
+                    throw new ObjectDisposedException(nameof(SpreadsheetDataWithDb));
+
+                await _semaphore.WaitAsync();
+                try
+                {
+                    var modifiedCells = this.SelectMany((row, i) =>
+                        row.Select((cell, j) => cell))
+                        .Where(cell => cell.IsModified &&
+                               (!string.IsNullOrEmpty(cell.Value) || !string.IsNullOrEmpty(cell.Formula)))
+                        .Select(cell => new Cell
                         {
-                            var cell = new Cell
-                            {
-                                RowIndex = rowIndex,
-                                ColumnIndex = colIndex,
-                                Value = wpfCell.Value,
-                                Formula = wpfCell.Formula
-                            };
-                            cellsToAdd.Add(cell);
-                        }
+                            Id = cell.Id,
+                            RowIndex = cell.RowIndex,
+                            ColumnIndex = cell.ColumnIndex,
+                            Value = cell.Value,
+                            Formula = cell.Formula
+                        })
+                        .ToList();
+
+                    if (!modifiedCells.Any())
+                        return;
+
+                    using var transaction = await _context.Database.BeginTransactionAsync();
+                    try
+                    {
+                        _context.Cells.RemoveRange(_context.Cells);
+                        _context.Cells.AddRange(modifiedCells);
+                        await _context.SaveChangesAsync();
+                        await transaction.CommitAsync();
+
+                        foreach (var row in this)
+                            foreach (var cell in row)
+                                cell.ResetModifiedFlag();
+                    }
+                    catch
+                    {
+                        await transaction.RollbackAsync();
+                        throw;
                     }
                 }
-
-                // Add all new cells at once
-                _context.Cells.AddRange(cellsToAdd);
-                _context.SaveChanges();
+                finally
+                {
+                    _semaphore.Release();
+                }
             }
 
             public void AddRow()
             {
                 var newRow = new ObservableCollection<WpfCell>();
-                int columnCount = this.FirstOrDefault()?.Count ?? 0;
+                int columnCount = this.FirstOrDefault()?.Count ?? MinColumns;
 
                 for (int j = 0; j < columnCount; j++)
-                {
-                    newRow.Add(new WpfCell
-                    {
-                        RowIndex = Count,
-                        ColumnIndex = j,
-                    });
-                }
+                    newRow.Add(CreateWpfCell(Count, j));
+
+                newRow.CollectionChanged += HandleRowCollectionChanged;
                 Add(newRow);
             }
 
             public void AddColumn()
             {
                 int newColumnIndex = this.FirstOrDefault()?.Count ?? 0;
-
                 foreach (var row in this)
-                {
-                    row.Add(new WpfCell
-                    {
-                        RowIndex = this.IndexOf(row),
-                        ColumnIndex = newColumnIndex,
-                    });
-                }
+                    row.Add(CreateWpfCell(this.IndexOf(row), newColumnIndex));
             }
 
             public void RemoveLastRow()
             {
-                if (Count > 1)
+                if (Count > MinRows)
                 {
+                    var lastRow = this[Count - 1];
+                    lastRow.CollectionChanged -= HandleRowCollectionChanged;
                     RemoveAt(Count - 1);
                 }
             }
 
             public void RemoveLastColumn()
             {
-                if (this.FirstOrDefault()?.Count > 1)
+                if (this.FirstOrDefault()?.Count > MinColumns)
                 {
                     foreach (var row in this)
-                    {
                         row.RemoveAt(row.Count - 1);
-                    }
                 }
+            }
+
+            private void HandleCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+            {
+                if (e.NewItems != null)
+                {
+                    foreach (ObservableCollection<WpfCell> row in e.NewItems)
+                        row.CollectionChanged += HandleRowCollectionChanged;
+                }
+
+                if (e.OldItems != null)
+                {
+                    foreach (ObservableCollection<WpfCell> row in e.OldItems)
+                        row.CollectionChanged -= HandleRowCollectionChanged;
+                }
+            }
+
+            private void HandleRowCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+            {
+            }
+
+            public void Dispose()
+            {
+                if (!_isDisposed)
+                {
+                    foreach (var row in this)
+                        row.CollectionChanged -= HandleRowCollectionChanged;
+                    this.CollectionChanged -= HandleCollectionChanged;
+                    _context.Dispose();
+                    _semaphore.Dispose();
+                    _isDisposed = true;
+                }
+                GC.SuppressFinalize(this);
             }
         }
     }

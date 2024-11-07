@@ -1,25 +1,21 @@
-﻿
-using System.Windows;
-using System.IO;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Data;
-using System.Text.Json;
 using FuturePortfolio.Data;
-using TextBox = System.Windows.Controls.TextBox;
-using Brushes = System.Windows.Media.Brushes;
+using Microsoft.Win32;
+using System.Text.RegularExpressions;
 using static FuturePortfolio.Data.SpreadSheetContext;
-
+using System.Windows.Media;
 
 namespace FuturePortfolio
 {
-
     public partial class MainWindow : Window
     {
-        private SpreadsheetDataWithDb _data;
+        private readonly SpreadsheetDataWithDb _data;
         private readonly SpreadSheetContext _context;
         private WpfCell? _selectedCell;
-        private const string SaveFilePath = "spreadsheet.json";
-
+        private static readonly Regex FormulaPattern = new(@"^=.*", RegexOptions.Compiled);
+        private const int DefaultColumnCount = 5;
 
         public MainWindow()
         {
@@ -27,106 +23,111 @@ namespace FuturePortfolio
             _context = new SpreadSheetContext();
             _data = new SpreadsheetDataWithDb(_context);
 
-            this.DataContext = _data;
-            GenerateColumns();
-            ExcelLikeGrid.ItemsSource = _data;
+            if (_data.Count == 0)
+            {
+                _data.AddRow();
+            }
+
+            DataContext = _data;
+            InitializeGrid();
 
             ExcelLikeGrid.LoadingRow += ExcelLikeGrid_LoadingRow;
-            this.Closing += MainWindow_Closing;
+            Closing += MainWindow_Closing;
         }
 
-        
+        private void InitializeGrid()
+        {
+            GenerateColumns();
+            ExcelLikeGrid.ItemsSource = _data;
+        }
 
         private void ExcelLikeGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             var cell = ExcelLikeGrid.CurrentCell;
-            if (cell != null && cell.Item != null)
+            if (cell.Column != null && cell.Item != null)
             {
                 var row = ExcelLikeGrid.Items.IndexOf(cell.Item);
                 var column = cell.Column.DisplayIndex;
                 _selectedCell = _data[row][column];
-
             }
-        }
-
-        private void AddRowButton_Click(object sender, RoutedEventArgs e)
-        {
-            _data.AddRow();
-            UpdateRowHeaders();
-        }
-
-        private void AddColumnButton_Click(object sender, RoutedEventArgs e)
-        {
-            _data.AddColumn();
-            GenerateColumns();
-        }
-
-        private void RemoveRowButton_Click(object sender, RoutedEventArgs e)
-        {
-            _data.RemoveLastRow();
-            UpdateRowHeaders();
-        }
-
-        private void RemoveColumnButton_Click(object sender, RoutedEventArgs e)
-        {
-            _data.RemoveLastColumn();
-            GenerateColumns();
         }
 
         private void GenerateColumns()
         {
             ExcelLikeGrid.Columns.Clear();
-            for (int i = 0; i < _data[0].Count; i++)
+
+            int columnCount = _data.FirstOrDefault()?.Count ?? DefaultColumnCount;
+
+            if (columnCount == 0)
             {
-                var column = new DataGridTextColumn
+                columnCount = DefaultColumnCount;
+                for (int i = 0; i < columnCount; i++)
                 {
-                    Header = ((char)('A' + i)).ToString(),
-                    Width = 100,
-                    Binding = new System.Windows.Data.Binding($"[{i}].Value")
+                    _data[0].Add(new WpfCell
                     {
-                        UpdateSourceTrigger = System.Windows.Data.UpdateSourceTrigger.PropertyChanged
-                    },
-                    EditingElementStyle = new Style(typeof(TextBox))
-                    {
-                        Setters =
+                        RowIndex = 0,
+                        ColumnIndex = i
+                    });
+                }
+            }
+
+            for (int i = 0; i < columnCount; i++)
+            {
+                ExcelLikeGrid.Columns.Add(CreateColumn(i));
+            }
+        }
+
+        private static DataGridTextColumn CreateColumn(int index) =>
+            new()
+            {
+                Header = GetColumnHeader(index),
+                Width = 100,
+                Binding = new System.Windows.Data.Binding($"[{index}].Value")
+                {
+                    UpdateSourceTrigger = System.Windows.Data.UpdateSourceTrigger.PropertyChanged
+                },
+                EditingElementStyle = CreateEditingStyle()
+            };
+
+        private static string GetColumnHeader(int index)
+        {
+            const int alphabetLength = 26;
+            string header = string.Empty;
+
+            do
+            {
+                header = (char)('A' + (index % alphabetLength)) + header;
+                index = (index / alphabetLength) - 1;
+            } while (index >= 0);
+
+            return header;
+        }
+
+        private static Style CreateEditingStyle() =>
+            new(typeof(TextBox))
+            {
+                Setters =
                 {
                     new Setter(TextBox.BorderThicknessProperty, new Thickness(0)),
                     new Setter(TextBox.BackgroundProperty, Brushes.White),
                     new Setter(TextBox.PaddingProperty, new Thickness(2))
                 }
-                    }
-                };
-
-                ExcelLikeGrid.Columns.Add(column);
-            }
-        }
-
-        private void MainWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e)
-        {
-            _data.SaveToDatabase();
-            _context.Dispose();
-        }
-
-        private void UpdateRowHeaders()
-        {
-            for (int i = 0; i < _data.Count; i++)
-            {
-                var rowContainer = ExcelLikeGrid.ItemContainerGenerator.ContainerFromIndex(i) as DataGridRow;
-                if (rowContainer != null)
-                {
-                    rowContainer.Header = (i + 1).ToString();
-                }
-            }
-        }
-
-        private void SaveSpreadsheet()
-        {
-            var options = new JsonSerializerOptions
-            {
-                WriteIndented = true
             };
-            var jsonString = JsonSerializer.Serialize(_data, options);
-            File.WriteAllText(SaveFilePath, jsonString);
+
+        private async void MainWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+        {
+            try
+            {
+                await _data.SaveToDatabaseAsync();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error saving data: {ex.Message}", "Save Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                _data.Dispose();
+            }
         }
 
         private void ExcelLikeGrid_LoadingRow(object? sender, DataGridRowEventArgs e)
@@ -134,20 +135,11 @@ namespace FuturePortfolio
             e.Row.Header = (e.Row.GetIndex() + 1).ToString();
         }
 
-
         private void ExcelLikeGrid_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
         {
-            if (e.EditAction == DataGridEditAction.Commit)
+            if (e.EditAction == DataGridEditAction.Commit && e.EditingElement is TextBox editedTextBox)
             {
-                var column = e.Column.DisplayIndex;
-                var row = e.Row.GetIndex();
-                var editedTextBox = e.EditingElement as TextBox;
-
-                if (editedTextBox != null)
-                {
-                    string newValue = editedTextBox.Text;
-                    UpdateCellValue(row, column, newValue);
-                }
+                UpdateCellValue(e.Row.GetIndex(), e.Column.DisplayIndex, editedTextBox.Text);
             }
         }
 
@@ -155,10 +147,10 @@ namespace FuturePortfolio
         {
             var cell = _data[row][column];
 
-            if (newValue.StartsWith("="))
+            if (FormulaPattern.IsMatch(newValue))
             {
                 cell.Formula = newValue;
-                cell.Value = EvaluateFormula(newValue.Substring(1));
+                cell.Value = EvaluateFormula(newValue[1..]);
             }
             else
             {
@@ -167,18 +159,31 @@ namespace FuturePortfolio
             }
         }
 
-        private string EvaluateFormula(string formula)
+        private static string EvaluateFormula(string formula)
         {
             try
             {
-                DataTable dt = new DataTable();
-                var result = dt.Compute(formula, "");
-                return result.ToString();
+                var dt = new DataTable();
+                var result = dt.Compute(formula, string.Empty);
+                return result.ToString() ?? string.Empty;
             }
             catch (Exception ex)
             {
                 return $"Error: {ex.Message}";
             }
+        }
+
+        private void AddRowButton_Click(object sender, RoutedEventArgs e) => _data.AddRow();
+        private void AddColumnButton_Click(object sender, RoutedEventArgs e)
+        {
+            _data.AddColumn();
+            GenerateColumns();
+        }
+        private void RemoveRowButton_Click(object sender, RoutedEventArgs e) => _data.RemoveLastRow();
+        private void RemoveColumnButton_Click(object sender, RoutedEventArgs e)
+        {
+            _data.RemoveLastColumn();
+            GenerateColumns();
         }
     }
 }
