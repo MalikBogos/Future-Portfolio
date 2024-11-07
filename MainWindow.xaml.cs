@@ -1,189 +1,216 @@
-﻿using System.Windows;
+﻿using System;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Windows;
 using System.Windows.Controls;
-using System.Data;
-using FuturePortfolio.Data;
-using Microsoft.Win32;
-using System.Text.RegularExpressions;
-using static FuturePortfolio.Data.SpreadSheetContext;
-using System.Windows.Media;
+using System.Windows.Data;
+using FuturePortfolio.Core;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace FuturePortfolio
 {
     public partial class MainWindow : Window
     {
-        private readonly SpreadsheetDataWithDb _data;
-        private readonly SpreadSheetContext _context;
-        private WpfCell? _selectedCell;
-        private static readonly Regex FormulaPattern = new(@"^=.*", RegexOptions.Compiled);
-        private const int DefaultColumnCount = 5;
+        private readonly MainViewModel _viewModel;
+        private readonly IServiceScope _scope;
+        private bool _isClosing;
 
         public MainWindow()
         {
             InitializeComponent();
-            _context = new SpreadSheetContext();
-            _data = new SpreadsheetDataWithDb(_context);
 
-            if (_data.Count == 0)
+            if (App.Host != null)
             {
-                _data.AddRow();
+                _scope = App.Host.Services.CreateScope();
+                _viewModel = _scope.ServiceProvider.GetRequiredService<MainViewModel>();
+                DataContext = _viewModel;
+            }
+            else
+            {
+                throw new InvalidOperationException("Application host is not initialized.");
             }
 
-            DataContext = _data;
-            InitializeGrid();
-
-            ExcelLikeGrid.LoadingRow += ExcelLikeGrid_LoadingRow;
+            Loaded += MainWindow_Loaded;
             Closing += MainWindow_Closing;
         }
 
-        private void InitializeGrid()
+        private void SpreadsheetGrid_AutoGeneratingColumn(object sender, DataGridAutoGeneratingColumnEventArgs e)
         {
-            GenerateColumns();
-            ExcelLikeGrid.ItemsSource = _data;
-        }
-
-        private void ExcelLikeGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            var cell = ExcelLikeGrid.CurrentCell;
-            if (cell.Column != null && cell.Item != null)
+            // Handle non-data property columns
+            if (!(e.PropertyDescriptor is System.ComponentModel.PropertyDescriptor pd) ||
+                e.PropertyType == typeof(ObservableCollection<CellViewModel>))
             {
-                var row = ExcelLikeGrid.Items.IndexOf(cell.Item);
-                var column = cell.Column.DisplayIndex;
-                _selectedCell = _data[row][column];
+                e.Cancel = true;
+                return;
             }
-        }
 
-        private void GenerateColumns()
-        {
-            ExcelLikeGrid.Columns.Clear();
-
-            int columnCount = _data.FirstOrDefault()?.Count ?? DefaultColumnCount;
-
-            if (columnCount == 0)
+            var column = e.Column as DataGridTextColumn;
+            if (column != null)
             {
-                columnCount = DefaultColumnCount;
-                for (int i = 0; i < columnCount; i++)
+                try
                 {
-                    _data[0].Add(new WpfCell
+                    // Convert column header to Excel-style (A, B, C, etc.)
+                    var columnIndex = SpreadsheetGrid.Columns.Count;
+                    var position = new CellPosition(0, columnIndex);
+                    column.Header = position.ToColumnName();
+
+                    // Set the binding to DisplayValue
+                    column.Binding = new Binding("DisplayValue");
+
+                    // Apply styles
+                    column.ElementStyle = new Style(typeof(TextBlock))
                     {
-                        RowIndex = 0,
-                        ColumnIndex = i
-                    });
-                }
-            }
+                        Setters = { new Setter(TextBlock.PaddingProperty, new Thickness(4, 2, 4, 2)) }
+                    };
 
-            for (int i = 0; i < columnCount; i++)
-            {
-                ExcelLikeGrid.Columns.Add(CreateColumn(i));
+                    column.EditingElementStyle = new Style(typeof(TextBox))
+                    {
+                        Setters = {
+                        new Setter(TextBox.PaddingProperty, new Thickness(4, 2, 4, 2)),
+                        new Setter(TextBox.BorderThicknessProperty, new Thickness(0))
+                    }
+                    };
+                }
+                catch
+                {
+                    e.Cancel = true;
+                }
             }
         }
 
-        private static DataGridTextColumn CreateColumn(int index) =>
-            new()
-            {
-                Header = GetColumnHeader(index),
-                Width = 100,
-                Binding = new System.Windows.Data.Binding($"[{index}].Value")
-                {
-                    UpdateSourceTrigger = System.Windows.Data.UpdateSourceTrigger.PropertyChanged
-                },
-                EditingElementStyle = CreateEditingStyle()
-            };
-
-        private static string GetColumnHeader(int index)
-        {
-            const int alphabetLength = 26;
-            string header = string.Empty;
-
-            do
-            {
-                header = (char)('A' + (index % alphabetLength)) + header;
-                index = (index / alphabetLength) - 1;
-            } while (index >= 0);
-
-            return header;
-        }
-
-        private static Style CreateEditingStyle() =>
-            new(typeof(TextBox))
-            {
-                Setters =
-                {
-                    new Setter(TextBox.BorderThicknessProperty, new Thickness(0)),
-                    new Setter(TextBox.BackgroundProperty, Brushes.White),
-                    new Setter(TextBox.PaddingProperty, new Thickness(2))
-                }
-            };
-
-        private async void MainWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+        private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
             try
             {
-                await _data.SaveToDatabaseAsync();
+                await _viewModel.InitializeAsync();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error saving data: {ex.Message}", "Save Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-            finally
-            {
-                _data.Dispose();
+                MessageBox.Show(
+                    $"Failed to load data: {ex.Message}",
+                    "Error",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
             }
         }
 
-        private void ExcelLikeGrid_LoadingRow(object? sender, DataGridRowEventArgs e)
+        private async void MainWindow_Closing(object sender, CancelEventArgs e)
+        {
+            if (_isClosing) return;
+
+            try
+            {
+                e.Cancel = true;
+                _isClosing = true;
+
+                var result = MessageBox.Show(
+                    "Do you want to save changes before closing?",
+                    "Save Changes",
+                    MessageBoxButton.YesNoCancel,
+                    MessageBoxImage.Question);
+
+                if (result == MessageBoxResult.Cancel)
+                {
+                    _isClosing = false;
+                    return;
+                }
+
+                if (result == MessageBoxResult.Yes)
+                {
+                    try
+                    {
+                        await _viewModel.SaveAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show(
+                            $"Failed to save changes: {ex.Message}",
+                            "Save Error",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Error);
+                    }
+                }
+
+                _scope?.Dispose();
+                Application.Current.Shutdown();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Error while closing: {ex.Message}",
+                    "Error",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+                Application.Current.Shutdown();
+            }
+        }
+
+        private async void SaveAndClose()
+        {
+            try
+            {
+                await _viewModel.SaveAsync();
+                Close();
+            }
+            catch (Exception ex)
+            {
+                HandleClosingError(ex, new CancelEventArgs());
+            }
+        }
+
+        private void HandleClosingError(Exception ex, CancelEventArgs e)
+        {
+            var result = MessageBox.Show(
+                $"Failed to save changes: {ex.Message}\n\nDo you want to close without saving?",
+                "Save Error",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+
+            e.Cancel = (result == MessageBoxResult.No);
+
+            if (!e.Cancel)
+            {
+                Close();
+            }
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            base.OnClosed(e);
+            _scope?.Dispose();
+        }
+
+        private void SpreadsheetGrid_LoadingRow(object? sender, DataGridRowEventArgs e)
         {
             e.Row.Header = (e.Row.GetIndex() + 1).ToString();
         }
 
-        private void ExcelLikeGrid_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
+        private async void SpreadsheetGrid_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
         {
-            if (e.EditAction == DataGridEditAction.Commit && e.EditingElement is TextBox editedTextBox)
-            {
-                UpdateCellValue(e.Row.GetIndex(), e.Column.DisplayIndex, editedTextBox.Text);
-            }
-        }
+            if (e.EditAction != DataGridEditAction.Commit)
+                return;
 
-        private void UpdateCellValue(int row, int column, string newValue)
-        {
-            var cell = _data[row][column];
-
-            if (FormulaPattern.IsMatch(newValue))
-            {
-                cell.Formula = newValue;
-                cell.Value = EvaluateFormula(newValue[1..]);
-            }
-            else
-            {
-                cell.Formula = null;
-                cell.Value = newValue;
-            }
-        }
-
-        private static string EvaluateFormula(string formula)
-        {
             try
             {
-                var dt = new DataTable();
-                var result = dt.Compute(formula, string.Empty);
-                return result.ToString() ?? string.Empty;
+                if (e.EditingElement is TextBox textBox)
+                {
+                    var position = new CellPosition(
+                        e.Row.GetIndex(),
+                        e.Column.DisplayIndex);
+
+                    e.Cancel = true;
+                    await _viewModel.UpdateCellValueAsync(position, textBox.Text);
+                    e.Cancel = false;
+                }
             }
             catch (Exception ex)
             {
-                return $"Error: {ex.Message}";
+                MessageBox.Show(
+                    $"Failed to update cell: {ex.Message}",
+                    "Error",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
             }
-        }
-
-        private void AddRowButton_Click(object sender, RoutedEventArgs e) => _data.AddRow();
-        private void AddColumnButton_Click(object sender, RoutedEventArgs e)
-        {
-            _data.AddColumn();
-            GenerateColumns();
-        }
-        private void RemoveRowButton_Click(object sender, RoutedEventArgs e) => _data.RemoveLastRow();
-        private void RemoveColumnButton_Click(object sender, RoutedEventArgs e)
-        {
-            _data.RemoveLastColumn();
-            GenerateColumns();
         }
     }
 }

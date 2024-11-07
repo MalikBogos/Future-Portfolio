@@ -3,79 +3,84 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:FuturePortfolio"
-        mc:Ignorable="d"
-        Title="DoWell" Height="450" Width="800">
+        Title="Future Portfolio" Height="650" Width="1000"
+        WindowStartupLocation="CenterScreen">
+
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+    </Window.Resources>
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-        <ToolBar Grid.Row="0">
-            <Button x:Name="AddRowButton" Content="Add Row" Click="AddRowButton_Click" Padding="5,2"/>
-            <Button x:Name="AddColumnButton" Content="Add Column" Click="AddColumnButton_Click" Padding="5,2"/>
-            <Button x:Name="RemoveRowButton" Content="Remove Row" Click="RemoveRowButton_Click" Padding="5,2"/>
-            <Button x:Name="RemoveColumnButton" Content="Remove Column" Click="RemoveColumnButton_Click" Padding="5,2"/>
+
+        <Menu Grid.Row="0">
+            <MenuItem Header="_File">
+                <MenuItem Header="_Save" Command="{Binding SaveCommand}"/>
+            </MenuItem>
+        </Menu>
+
+        <ToolBar Grid.Row="1">
+            <Button Command="{Binding AddRowCommand}" 
+                    Content="Add Row"
+                    Padding="5,2"
+                    Margin="2"/>
+            <Button Command="{Binding AddColumnCommand}"
+                    Content="Add Column"
+                    Padding="5,2"
+                    Margin="2"/>
+            <Separator/>
+            <Button Command="{Binding RemoveRowCommand}"
+                    Content="Remove Row"
+                    Padding="5,2"
+                    Margin="2"/>
+            <Button Command="{Binding RemoveColumnCommand}"
+                    Content="Remove Column"
+                    Padding="5,2"
+                    Margin="2"/>
         </ToolBar>
-        <DataGrid x:Name="ExcelLikeGrid" Grid.Row="1"
-                  AutoGenerateColumns="False"
-                  CanUserAddRows="False"
-                  EnableColumnVirtualization="True"
-                  EnableRowVirtualization="True"
-                  CellEditEnding="ExcelLikeGrid_CellEditEnding"
-                  SelectionChanged="ExcelLikeGrid_SelectionChanged"
-                  HeadersVisibility="All"
-                  SelectionUnit="Cell"
-                  SelectionMode="Single"
-                  RowHeaderWidth="25"
-                  GridLinesVisibility="None"
-                  HorizontalGridLinesBrush="LightGray"
-                  VerticalGridLinesBrush="LightGray">
+
+        <DataGrid x:Name="SpreadsheetGrid" 
+          Grid.Row="2"
+          ItemsSource="{Binding Cells}"
+          CanUserAddRows="False"
+          CanUserDeleteRows="False"
+          AutoGenerateColumns="True"
+          RowHeaderWidth="50"
+          SelectionMode="Single"
+          SelectionUnit="Cell"
+          CellEditEnding="SpreadsheetGrid_CellEditEnding"
+          LoadingRow="SpreadsheetGrid_LoadingRow"
+          AutoGeneratingColumn="SpreadsheetGrid_AutoGeneratingColumn">
             <DataGrid.Resources>
-                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#3399FF" Opacity="0.4"/>
-                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="Black"/>
-                <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="#3399FF" Opacity="0.4"/>
-                <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" Color="Black"/>
-            </DataGrid.Resources>
-            <DataGrid.RowHeaderTemplate>
-                <DataTemplate>
-                    <TextBlock Text="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=Header}"
-                             VerticalAlignment="Center"
-                             HorizontalAlignment="Center"/>
-                </DataTemplate>
-            </DataGrid.RowHeaderTemplate>
-            <DataGrid.CellStyle>
                 <Style TargetType="DataGridCell">
-                    <Setter Property="BorderThickness" Value="0,0,1,1"/>
-                    <Setter Property="BorderBrush" Value="LightGray"/>
+                    <Setter Property="BorderThickness" Value="1"/>
+                    <Setter Property="BorderBrush" Value="#DDDDDD"/>
                     <Setter Property="Background" Value="White"/>
-                    <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-                    <Setter Property="Template">
-                        <Setter.Value>
-                            <ControlTemplate TargetType="DataGridCell">
-                                <Border BorderThickness="{TemplateBinding BorderThickness}"
-                                        BorderBrush="{TemplateBinding BorderBrush}"
-                                        Background="{TemplateBinding Background}">
-                                    <ContentPresenter Margin="1"/>
-                                </Border>
-                            </ControlTemplate>
-                        </Setter.Value>
-                    </Setter>
+                    <Setter Property="Padding" Value="4,2"/>
                     <Style.Triggers>
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter Property="Background" Value="#3399FF20"/>
+                            <Setter Property="Background" Value="#DCE6F1"/>
+                            <Setter Property="BorderBrush" Value="#2B579A"/>
                         </Trigger>
                     </Style.Triggers>
                 </Style>
-            </DataGrid.CellStyle>
-            <DataGrid.ColumnHeaderStyle>
-                <Style TargetType="DataGridColumnHeader">
-                    <Setter Property="BorderThickness" Value="0,0,1,1"/>
-                    <Setter Property="BorderBrush" Value="LightGray"/>
-                    <Setter Property="Background" Value="#F0F0F0"/>
-                    <Setter Property="Padding" Value="5"/>
-                </Style>
-            </DataGrid.ColumnHeaderStyle>
+            </DataGrid.Resources>
         </DataGrid>
+
+        <StatusBar Grid.Row="3">
+            <StatusBarItem>
+                <TextBlock Text="{Binding StatusMessage}"/>
+            </StatusBarItem>
+            <StatusBarItem HorizontalAlignment="Right">
+                <ProgressBar Width="100" Height="15" 
+                            IsIndeterminate="{Binding IsLoading}"
+                            Visibility="{Binding IsLoading, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+            </StatusBarItem>
+        </StatusBar>
     </Grid>
 </Window>
