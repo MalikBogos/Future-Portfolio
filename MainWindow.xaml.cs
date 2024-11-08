@@ -36,41 +36,19 @@ namespace FuturePortfolio
 
         private void SpreadsheetGrid_AutoGeneratingColumn(object sender, DataGridAutoGeneratingColumnEventArgs e)
         {
-            if (e.PropertyName.StartsWith("Item[") && e.PropertyName.EndsWith("]"))
+            var column = new DataGridTextColumn();
+            var header = ((PropertyDescriptor)e.PropertyDescriptor).DisplayName;
+
+            if (header.StartsWith("Column"))
             {
-                var column = new DataGridTextColumn();
-
-                // Extract index from property name (format is "Item[X]")
-                string indexStr = e.PropertyName.Substring(5, e.PropertyName.Length - 6);
-                if (int.TryParse(indexStr, out int columnIndex))
+                int columnIndex = int.Parse(header.Replace("Column", ""));
+                column.Header = new CellPosition(0, columnIndex).ToColumnName();
+                column.Binding = new Binding($"Cells[{columnIndex}].DisplayValue")
                 {
-                    // Convert to Excel-style column header (A, B, C, etc.)
-                    var position = new CellPosition(0, columnIndex);
-                    column.Header = position.ToColumnName();
-
-                    // Set the binding to DisplayValue of the CellViewModel
-                    column.Binding = new Binding($"DisplayValue");
-
-                    // Apply styles
-                    column.ElementStyle = new Style(typeof(TextBlock))
-                    {
-                        Setters = { new Setter(TextBlock.PaddingProperty, new Thickness(4, 2, 4, 2)) }
-                    };
-
-                    column.EditingElementStyle = new Style(typeof(TextBox))
-                    {
-                        Setters = {
-                            new Setter(TextBox.PaddingProperty, new Thickness(4, 2, 4, 2)),
-                            new Setter(TextBox.BorderThicknessProperty, new Thickness(0))
-                        }
-                    };
-
-                    e.Column = column;
-                }
-                else
-                {
-                    e.Cancel = true;
-                }
+                    Mode = BindingMode.TwoWay,
+                    UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged
+                };
+                e.Column = column;
             }
             else
             {
@@ -119,7 +97,7 @@ namespace FuturePortfolio
                 {
                     try
                     {
-                        await _viewModel.SaveAsync();
+                        await _viewModel.Save();
                     }
                     catch (Exception ex)
                     {
@@ -149,7 +127,7 @@ namespace FuturePortfolio
         {
             try
             {
-                await _viewModel.SaveAsync();
+                await _viewModel.Save();
                 Close();
             }
             catch (Exception ex)
@@ -211,12 +189,16 @@ namespace FuturePortfolio
                 if (e.EditingElement is TextBox textBox)
                 {
                     var row = (ObservableCollection<CellViewModel>)e.Row.Item;
-                    var cell = row[e.Column.DisplayIndex];
-                    var position = new CellPosition(e.Row.GetIndex(), e.Column.DisplayIndex);
+                    var columnIndex = e.Column.DisplayIndex;
 
-                    e.Cancel = true;
-                    await _viewModel.UpdateCellValueAsync(position, textBox.Text);
-                    e.Cancel = false;
+                    if (columnIndex >= 0 && columnIndex < row.Count)
+                    {
+                        var position = new CellPosition(e.Row.GetIndex(), columnIndex);
+
+                        e.Cancel = true;
+                        await _viewModel.UpdateCellValueAsync(position, textBox.Text);
+                        e.Cancel = false;
+                    }
                 }
             }
             catch (Exception ex)

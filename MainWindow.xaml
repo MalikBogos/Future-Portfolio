@@ -86,34 +86,20 @@
 
         <DataGrid x:Name="SpreadsheetGrid" 
           Grid.Row="3"
-          ItemsSource="{Binding Cells}"
+          ItemsSource="{Binding Rows}"
+          AutoGenerateColumns="True"
           CanUserAddRows="False"
           CanUserDeleteRows="False"
-          AutoGenerateColumns="True"
           RowHeaderWidth="50"
           SelectionMode="Single"
           SelectionUnit="Cell"
           IsReadOnly="False"
-          EnableRowVirtualization="True"
-          EnableColumnVirtualization="True"
-          CellEditEnding="SpreadsheetGrid_CellEditEnding"
+          HeadersVisibility="All"
+          GridLinesVisibility="All"
           LoadingRow="SpreadsheetGrid_LoadingRow"
           AutoGeneratingColumn="SpreadsheetGrid_AutoGeneratingColumn"
-          SelectedCellsChanged="SpreadsheetGrid_SelectedCellsChanged">
-            <DataGrid.Resources>
-                <Style TargetType="DataGridCell">
-                    <Setter Property="BorderThickness" Value="1"/>
-                    <Setter Property="BorderBrush" Value="#DDDDDD"/>
-                    <Setter Property="Background" Value="White"/>
-                    <Setter Property="Padding" Value="4,2"/>
-                    <Style.Triggers>
-                        <Trigger Property="IsSelected" Value="True">
-                            <Setter Property="Background" Value="#DCE6F1"/>
-                            <Setter Property="BorderBrush" Value="#2B579A"/>
-                        </Trigger>
-                    </Style.Triggers>
-                </Style>
-            </DataGrid.Resources>
+          CellEditEnding="SpreadsheetGrid_CellEditEnding">
+            
         </DataGrid>
 
         <StatusBar Grid.Row="4">
