@@ -38,6 +38,21 @@ namespace FuturePortfolio.Migrations
                     b.Property<string>("Formula")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<bool>("IsBold")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<bool>("IsItalic")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<bool>("IsUnderlined")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.Property<int>("RowIndex")
                         .HasColumnType("int");
 

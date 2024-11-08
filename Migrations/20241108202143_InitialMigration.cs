@@ -5,7 +5,7 @@
 namespace FuturePortfolio.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialCreate : Migration
+    public partial class InitialMigration : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -19,7 +19,10 @@ namespace FuturePortfolio.Migrations
                     RowIndex = table.Column<int>(type: "int", nullable: false),
                     ColumnIndex = table.Column<int>(type: "int", nullable: false),
                     DisplayValue = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    Formula = table.Column<string>(type: "nvarchar(max)", nullable: true)
+                    Formula = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    IsBold = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    IsItalic = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    IsUnderlined = table.Column<bool>(type: "bit", nullable: false, defaultValue: false)
                 },
                 constraints: table =>
                 {
@@ -33,6 +36,7 @@ namespace FuturePortfolio.Migrations
                 unique: true);
         }
 
+        /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(

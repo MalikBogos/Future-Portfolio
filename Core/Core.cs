@@ -9,7 +9,9 @@ using System.Text.RegularExpressions;
 using Microsoft.Extensions.DependencyInjection;
 using FuturePortfolio.Core;
 using System.Runtime.InteropServices;
+using System.IO;
 using System.Windows.Controls;
+using Microsoft.Win32;
 using System.Windows;
 using FuturePortfolio;
 using System;
@@ -42,22 +44,42 @@ namespace FuturePortfolio
             }
         }
 
+        public record CellFormatting
+        {
+            public bool IsBold { get; init; }
+            public bool IsItalic { get; init; }
+            public bool IsUnderlined { get; init; }
+
+            public static CellFormatting Default => new();
+
+            public CellFormatting WithBold(bool bold) => this with { IsBold = bold };
+            public CellFormatting WithItalic(bool italic) => this with { IsItalic = italic };
+            public CellFormatting WithUnderline(bool underline) => this with { IsUnderlined = underline };
+        }
+
         public record CellValue
         {
             public string? DisplayValue { get; init; }
             public string? Formula { get; init; }
             public CellValueType Type { get; init; }
+            public CellFormatting Formatting { get; init; }
 
-            private CellValue(string? displayValue, string? formula, CellValueType type)
+            private CellValue(string? displayValue, string? formula, CellValueType type, CellFormatting? formatting = null)
             {
                 DisplayValue = displayValue;
                 Formula = formula;
                 Type = type;
+                Formatting = formatting ?? CellFormatting.Default;
             }
 
             public static CellValue Empty => new(null, null, CellValueType.Empty);
-            public static CellValue FromText(string text) => new(text, null, CellValueType.Text);
-            public static CellValue FromFormula(string formula, string result) => new(result, formula, CellValueType.Formula);
+            public static CellValue FromText(string text, CellFormatting? formatting = null) =>
+                new(text, null, CellValueType.Text, formatting);
+            public static CellValue FromFormula(string formula, string result, CellFormatting? formatting = null) =>
+                new(result, formula, CellValueType.Formula, formatting);
+
+            public CellValue WithFormatting(CellFormatting formatting) =>
+                this with { Formatting = formatting };
         }
 
         public enum CellValueType
@@ -104,6 +126,9 @@ namespace FuturePortfolio
             public int ColumnIndex { get; set; }
             public string? DisplayValue { get; set; }
             public string? Formula { get; set; }
+            public bool IsBold { get; set; }
+            public bool IsItalic { get; set; }
+            public bool IsUnderlined { get; set; }
         }
 
         // DbContext
@@ -125,6 +150,15 @@ namespace FuturePortfolio
                           .IsRequired(false);
                     entity.Property(e => e.Formula)
                           .IsRequired(false);
+                    entity.Property(e => e.IsBold)
+                          .IsRequired()
+                          .HasDefaultValue(false);
+                    entity.Property(e => e.IsItalic)
+                          .IsRequired()
+                          .HasDefaultValue(false);
+                    entity.Property(e => e.IsUnderlined)
+                          .IsRequired()
+                          .HasDefaultValue(false);
                 });
             }
         }
@@ -135,11 +169,14 @@ namespace FuturePortfolio
             event EventHandler<CellChangedEventArgs>? CellChanged;
             Task<IReadOnlyList<Cell>> GetCellsAsync();
             Task SetCellValueAsync(CellPosition position, string value);
+            Task UpdateCellFormattingAsync(CellPosition position, CellFormatting formatting);
+            Task LoadCellsAsync(IEnumerable<CellEntity> cells);
             Task AddRowAsync();
             Task AddColumnAsync();
             Task RemoveLastRowAsync();
             Task RemoveLastColumnAsync();
             Task SaveChangesAsync();
+            Task ClearAsync();
             int RowCount { get; }
             int ColumnCount { get; }
         }
@@ -370,7 +407,10 @@ namespace FuturePortfolio
                             RowIndex = cell.Position.Row,
                             ColumnIndex = cell.Position.Column,
                             DisplayValue = cell.DisplayValue,
-                            Formula = cell.Value.Formula
+                            Formula = cell.Value.Formula,
+                            IsBold = cell.Value.Formatting.IsBold,
+                            IsItalic = cell.Value.Formatting.IsItalic,
+                            IsUnderlined = cell.Value.Formatting.IsUnderlined
                         })
                         .ToList();
 
@@ -387,6 +427,98 @@ namespace FuturePortfolio
                         await transaction.RollbackAsync();
                         throw;
                     }
+                }
+                finally
+                {
+                    _semaphore.Release();
+                }
+            }
+
+            public async Task UpdateCellFormattingAsync(CellPosition position, CellFormatting formatting)
+            {
+                await _semaphore.WaitAsync();
+                try
+                {
+                    var cell = _grid[position.Row][position.Column];
+                    cell.Value = cell.Value.WithFormatting(formatting);
+                    CellChanged?.Invoke(this, new CellChangedEventArgs(cell));
+                }
+                finally
+                {
+                    _semaphore.Release();
+                }
+            }
+
+            public async Task LoadCellsAsync(IEnumerable<CellEntity> cells)
+            {
+                await _semaphore.WaitAsync();
+                try
+                {
+                    _grid.Clear();
+                    var cellsList = cells.ToList();
+
+                    // Calculate grid dimensions
+                    int maxRow = cellsList.Any()
+                        ? Math.Max(cellsList.Max(c => c.RowIndex) + 1, DefaultRows)
+                        : DefaultRows;
+                    int maxCol = cellsList.Any()
+                        ? Math.Max(cellsList.Max(c => c.ColumnIndex) + 1, DefaultColumns)
+                        : DefaultColumns;
+
+                    // Initialize grid with proper dimensions
+                    for (int i = 0; i < maxRow; i++)
+                    {
+                        var row = new List<Cell>();
+                        for (int j = 0; j < maxCol; j++)
+                        {
+                            var position = new CellPosition(i, j);
+                            var cell = new Cell(position);
+
+                            // Find if there's a corresponding cell in the loaded data
+                            var dbCell = cellsList.FirstOrDefault(c => c.RowIndex == i && c.ColumnIndex == j);
+                            if (dbCell != null)
+                            {
+                                // Create formatting
+                                var formatting = new CellFormatting()
+                                    .WithBold(dbCell.IsBold)
+                                    .WithItalic(dbCell.IsItalic)
+                                    .WithUnderline(dbCell.IsUnderlined);
+
+                                // Set cell value with formatting
+                                cell.Value = dbCell.Formula != null
+                                    ? CellValue.FromFormula(dbCell.Formula, dbCell.DisplayValue ?? string.Empty, formatting)
+                                    : CellValue.FromText(dbCell.DisplayValue ?? string.Empty, formatting);
+                            }
+                            else
+                            {
+                                // Empty cell
+                                cell.Value = CellValue.Empty;
+                            }
+
+                            row.Add(cell);
+                        }
+                        _grid.Add(row);
+                    }
+
+                    // Notify all cells have changed
+                    foreach (var cell in _grid.SelectMany(row => row))
+                    {
+                        CellChanged?.Invoke(this, new CellChangedEventArgs(cell));
+                    }
+                }
+                finally
+                {
+                    _semaphore.Release();
+                }
+            }
+
+            public async Task ClearAsync()
+            {
+                await _semaphore.WaitAsync();
+                try
+                {
+                    _grid.Clear();
+                    InitializeEmptyGrid();
                 }
                 finally
                 {
@@ -471,6 +603,9 @@ namespace FuturePortfolio
         public partial class MainViewModel : ObservableObject
         {
             private readonly ISpreadsheetService _spreadsheetService;
+            private readonly IFileOperationsService _fileOperations;
+            private string? _currentFilePath;
+            private CellViewModel? _selectedCell;
 
             [ObservableProperty]
             private ObservableCollection<ObservableCollection<CellViewModel>> _cells = new();
@@ -481,9 +616,22 @@ namespace FuturePortfolio
             [ObservableProperty]
             private bool _isLoading;
 
-            public MainViewModel(ISpreadsheetService spreadsheetService)
+            [ObservableProperty]
+            private string _searchText = string.Empty;
+
+            [ObservableProperty]
+            private bool _isSelectedCellBold;
+
+            [ObservableProperty]
+            private bool _isSelectedCellItalic;
+
+            [ObservableProperty]
+            private bool _isSelectedCellUnderline;
+
+            public MainViewModel(ISpreadsheetService spreadsheetService, IFileOperationsService fileOperations)
             {
                 _spreadsheetService = spreadsheetService;
+                _fileOperations = fileOperations;
                 _spreadsheetService.CellChanged += OnCellChanged;
             }
 
@@ -505,6 +653,218 @@ namespace FuturePortfolio
                 {
                     StatusMessage = $"Error loading data: {ex.Message}";
                     throw;
+                }
+                finally
+                {
+                    IsLoading = false;
+                }
+            }
+
+            [RelayCommand]
+            private async Task Search()
+            {
+                if (string.IsNullOrWhiteSpace(SearchText))
+                {
+                    StatusMessage = "Please enter search text";
+                    return;
+                }
+
+                try
+                {
+                    StatusMessage = "Searching...";
+                    var foundCells = new List<(int Row, int Col)>();
+
+                    // Search through all cells
+                    for (int i = 0; i < Cells.Count; i++)
+                    {
+                        for (int j = 0; j < Cells[i].Count; j++)
+                        {
+                            var cellText = Cells[i][j].DisplayValue;
+                            if (!string.IsNullOrEmpty(cellText) &&
+                                cellText.Contains(SearchText, StringComparison.OrdinalIgnoreCase))
+                            {
+                                foundCells.Add((i, j));
+                            }
+                        }
+                    }
+
+                    if (foundCells.Count > 0)
+                    {
+                        StatusMessage = $"Found {foundCells.Count} matches";
+                        // Highlight first match
+                        HighlightCell(foundCells[0].Row, foundCells[0].Col);
+                    }
+                    else
+                    {
+                        StatusMessage = "No matches found";
+                    }
+                }
+                catch (Exception ex)
+                {
+                    StatusMessage = $"Search error: {ex.Message}";
+                }
+            }
+
+            private void HighlightCell(int row, int col)
+            {
+                // This method will be called from the view to highlight a cell
+                if (row < Cells.Count && col < Cells[row].Count)
+                {
+                    _selectedCell = Cells[row][col];
+                    OnCellSelected(_selectedCell);
+                }
+            }
+
+            public void OnCellSelected(CellViewModel cell)
+            {
+                _selectedCell = cell;
+                IsSelectedCellBold = cell.Value.Formatting.IsBold;
+                IsSelectedCellItalic = cell.Value.Formatting.IsItalic;
+                IsSelectedCellUnderline = cell.Value.Formatting.IsUnderlined;
+            }
+
+            [RelayCommand]
+            private async Task ToggleBold()
+            {
+                if (_selectedCell == null) return;
+
+                try
+                {
+                    var newFormatting = _selectedCell.Value.Formatting.WithBold(!IsSelectedCellBold);
+                    await UpdateCellFormattingAsync(_selectedCell.Position, newFormatting);
+                    IsSelectedCellBold = !IsSelectedCellBold;
+                }
+                catch (Exception ex)
+                {
+                    StatusMessage = $"Error updating formatting: {ex.Message}";
+                }
+            }
+
+            [RelayCommand]
+            private async Task ToggleItalic()
+            {
+                if (_selectedCell == null) return;
+
+                try
+                {
+                    var newFormatting = _selectedCell.Value.Formatting.WithItalic(!IsSelectedCellItalic);
+                    await UpdateCellFormattingAsync(_selectedCell.Position, newFormatting);
+                    IsSelectedCellItalic = !IsSelectedCellItalic;
+                }
+                catch (Exception ex)
+                {
+                    StatusMessage = $"Error updating formatting: {ex.Message}";
+                }
+            }
+
+            [RelayCommand]
+            private async Task ToggleUnderline()
+            {
+                if (_selectedCell == null) return;
+
+                try
+                {
+                    var newFormatting = _selectedCell.Value.Formatting.WithUnderline(!IsSelectedCellUnderline);
+                    await UpdateCellFormattingAsync(_selectedCell.Position, newFormatting);
+                    IsSelectedCellUnderline = !IsSelectedCellUnderline;
+                }
+                catch (Exception ex)
+                {
+                    StatusMessage = $"Error updating formatting: {ex.Message}";
+                }
+            }
+
+            private async Task UpdateCellFormattingAsync(CellPosition position, CellFormatting formatting)
+            {
+                await _spreadsheetService.UpdateCellFormattingAsync(position, formatting);
+            }
+
+            [RelayCommand]
+            private async Task OpenFile()
+            {
+                var dialog = new OpenFileDialog
+                {
+                    Filter = "Spreadsheet files (*.json)|*.json|All files (*.*)|*.*",
+                    Title = "Open Spreadsheet"
+                };
+
+                if (dialog.ShowDialog() == true)
+                {
+                    try
+                    {
+                        IsLoading = true;
+                        StatusMessage = "Loading file...";
+
+                        var cells = await _fileOperations.LoadFromFileAsync(dialog.FileName);
+                        await _spreadsheetService.LoadCellsAsync(cells);
+                        _currentFilePath = dialog.FileName;
+                        await InitializeAsync();
+
+                        StatusMessage = "File loaded successfully";
+                    }
+                    catch (Exception ex)
+                    {
+                        StatusMessage = $"Error loading file: {ex.Message}";
+                    }
+                    finally
+                    {
+                        IsLoading = false;
+                    }
+                }
+            }
+
+            [RelayCommand]
+            private async Task SaveFile()
+            {
+                if (string.IsNullOrEmpty(_currentFilePath))
+                {
+                    await SaveFileAs();
+                    return;
+                }
+
+                await SaveToFile(_currentFilePath);
+            }
+
+            [RelayCommand]
+            private async Task SaveFileAs()
+            {
+                var dialog = new SaveFileDialog
+                {
+                    Filter = "Spreadsheet files (*.json)|*.json|All files (*.*)|*.*",
+                    Title = "Save Spreadsheet"
+                };
+
+                if (dialog.ShowDialog() == true)
+                {
+                    await SaveToFile(dialog.FileName);
+                }
+            }
+
+            private async Task SaveToFile(string filePath)
+            {
+                try
+                {
+                    StatusMessage = "Saving...";
+                    IsLoading = true;
+
+                    var cells = await _spreadsheetService.GetCellsAsync();
+                    await _fileOperations.SaveToFileAsync(filePath, cells.Select(c => new CellEntity
+                    {
+                        RowIndex = c.Position.Row,
+                        ColumnIndex = c.Position.Column,
+                        DisplayValue = c.DisplayValue,
+                        Formula = c.Value.Formula,
+                        IsBold = c.Value.Formatting.IsBold,
+                        IsItalic = c.Value.Formatting.IsItalic,
+                        IsUnderlined = c.Value.Formatting.IsUnderlined
+                    }));
+
+                    _currentFilePath = filePath;
+                    StatusMessage = "File saved successfully";
+                }
+                catch (Exception ex)
+                {
+                    StatusMessage = $"Error saving file: {ex.Message}";
                 }
                 finally
                 {
@@ -538,6 +898,7 @@ namespace FuturePortfolio
                     Cells.Add(cellRow);
                 }
             }
+
 
             private void OnCellChanged(object? sender, CellChangedEventArgs e)
             {
@@ -653,6 +1014,9 @@ namespace FuturePortfolio
             [ObservableProperty]
             private string _editValue = string.Empty;
 
+            public CellValue Value => _cell.Value;
+            public CellPosition Position => _cell.Position;
+
             public CellViewModel(Cell cell)
             {
                 _cell = cell;
@@ -665,59 +1029,10 @@ namespace FuturePortfolio
                 EditValue = cell.Value.Formula ?? DisplayValue;
                 OnPropertyChanged(nameof(DisplayValue));
                 OnPropertyChanged(nameof(EditValue));
-            }
-        }
-    }
-
-    public partial class App : Application
-    {
-        public static IHost? Host { get; private set; }
-
-        public App()
-        {
-            Host = CreateHostBuilder().Build();
-            InitializeDatabase();
-        }
-
-        private void InitializeDatabase()
-        {
-            using var scope = Host?.Services.CreateScope();
-            var db = scope?.ServiceProvider.GetRequiredService<FuturePortfolioDbContext>();
-
-            if (db != null)
-            {
-                // This will create the database if it doesn't exist
-                // and apply any pending migrations
-                db.Database.Migrate();
+                OnPropertyChanged(nameof(Value));
             }
         }
 
-        public static IHostBuilder CreateHostBuilder(string[]? args = null) =>
-            Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder(args)
-                .ConfigureServices((hostContext, services) =>
-                {
-                    services.AddDbContextPool<FuturePortfolioDbContext>(options =>
-                        options.UseSqlServer(
-                            "Server=localhost;Database=FuturePortfolio;Integrated Security=True;TrustServerCertificate=True;"));
-
-                    services.AddScoped<ISpreadsheetService, SpreadsheetService>();
-                    services.AddTransient<MainViewModel>();
-                });
-
-        protected override async void OnStartup(StartupEventArgs e)
-        {
-            await Host!.StartAsync();
-            base.OnStartup(e);
-        }
-
-        protected override async void OnExit(ExitEventArgs e)
-        {
-            if (Host != null)
-            {
-                await Host.StopAsync();
-                Host.Dispose();
-            }
-            base.OnExit(e);
-        }
+        
     }
 }

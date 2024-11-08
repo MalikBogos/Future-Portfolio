@@ -36,26 +36,20 @@ namespace FuturePortfolio
 
         private void SpreadsheetGrid_AutoGeneratingColumn(object sender, DataGridAutoGeneratingColumnEventArgs e)
         {
-            // Handle non-data property columns
-            if (!(e.PropertyDescriptor is System.ComponentModel.PropertyDescriptor pd) ||
-                e.PropertyType == typeof(ObservableCollection<CellViewModel>))
+            if (e.PropertyName.StartsWith("Item[") && e.PropertyName.EndsWith("]"))
             {
-                e.Cancel = true;
-                return;
-            }
+                var column = new DataGridTextColumn();
 
-            var column = e.Column as DataGridTextColumn;
-            if (column != null)
-            {
-                try
+                // Extract index from property name (format is "Item[X]")
+                string indexStr = e.PropertyName.Substring(5, e.PropertyName.Length - 6);
+                if (int.TryParse(indexStr, out int columnIndex))
                 {
-                    // Convert column header to Excel-style (A, B, C, etc.)
-                    var columnIndex = SpreadsheetGrid.Columns.Count;
+                    // Convert to Excel-style column header (A, B, C, etc.)
                     var position = new CellPosition(0, columnIndex);
                     column.Header = position.ToColumnName();
 
-                    // Set the binding to DisplayValue
-                    column.Binding = new Binding("DisplayValue");
+                    // Set the binding to DisplayValue of the CellViewModel
+                    column.Binding = new Binding($"DisplayValue");
 
                     // Apply styles
                     column.ElementStyle = new Style(typeof(TextBlock))
@@ -66,15 +60,21 @@ namespace FuturePortfolio
                     column.EditingElementStyle = new Style(typeof(TextBox))
                     {
                         Setters = {
-                        new Setter(TextBox.PaddingProperty, new Thickness(4, 2, 4, 2)),
-                        new Setter(TextBox.BorderThicknessProperty, new Thickness(0))
-                    }
+                            new Setter(TextBox.PaddingProperty, new Thickness(4, 2, 4, 2)),
+                            new Setter(TextBox.BorderThicknessProperty, new Thickness(0))
+                        }
                     };
+
+                    e.Column = column;
                 }
-                catch
+                else
                 {
                     e.Cancel = true;
                 }
+            }
+            else
+            {
+                e.Cancel = true;
             }
         }
 
@@ -185,6 +185,22 @@ namespace FuturePortfolio
             e.Row.Header = (e.Row.GetIndex() + 1).ToString();
         }
 
+        private void SpreadsheetGrid_SelectedCellsChanged(object sender, SelectedCellsChangedEventArgs e)
+        {
+            if (SpreadsheetGrid.SelectedCells.Count > 0)
+            {
+                var selectedCell = SpreadsheetGrid.SelectedCells[0];
+                var row = (ObservableCollection<CellViewModel>)selectedCell.Item;
+                var columnIndex = selectedCell.Column.DisplayIndex;
+
+                if (columnIndex >= 0 && columnIndex < row.Count)
+                {
+                    var cell = row[columnIndex];
+                    _viewModel.OnCellSelected(cell);
+                }
+            }
+        }
+
         private async void SpreadsheetGrid_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
         {
             if (e.EditAction != DataGridEditAction.Commit)
@@ -194,9 +210,9 @@ namespace FuturePortfolio
             {
                 if (e.EditingElement is TextBox textBox)
                 {
-                    var position = new CellPosition(
-                        e.Row.GetIndex(),
-                        e.Column.DisplayIndex);
+                    var row = (ObservableCollection<CellViewModel>)e.Row.Item;
+                    var cell = row[e.Column.DisplayIndex];
+                    var position = new CellPosition(e.Row.GetIndex(), e.Column.DisplayIndex);
 
                     e.Cancel = true;
                     await _viewModel.UpdateCellValueAsync(position, textBox.Text);

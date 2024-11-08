@@ -5,13 +5,12 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         Title="Future Portfolio" Height="650" Width="1000"
         WindowStartupLocation="CenterScreen">
-
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
     </Window.Resources>
-
     <Grid>
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -20,7 +19,16 @@
 
         <Menu Grid.Row="0">
             <MenuItem Header="_File">
+                <MenuItem Header="_New" Command="{Binding NewFileCommand}"/>
+                <MenuItem Header="_Open" Command="{Binding OpenFileCommand}"/>
                 <MenuItem Header="_Save" Command="{Binding SaveCommand}"/>
+                <MenuItem Header="Save _As" Command="{Binding SaveAsCommand}"/>
+                <Separator/>
+                <MenuItem Header="_Exit" Command="{Binding ExitCommand}"/>
+            </MenuItem>
+            <MenuItem Header="_Edit">
+                <MenuItem Header="_Find" Command="{Binding FindCommand}" InputGestureText="Ctrl+F"/>
+                <MenuItem Header="Find and _Replace" Command="{Binding FindReplaceCommand}" InputGestureText="Ctrl+H"/>
             </MenuItem>
         </Menu>
 
@@ -42,10 +50,42 @@
                     Content="Remove Column"
                     Padding="5,2"
                     Margin="2"/>
+            <Separator/>
+            <ToggleButton Command="{Binding ToggleBoldCommand}"
+                         IsChecked="{Binding IsSelectedCellBold}"
+                         ToolTip="Bold (Ctrl+B)">
+                <TextBlock FontWeight="Bold" Text="B"/>
+            </ToggleButton>
+            <ToggleButton Command="{Binding ToggleItalicCommand}"
+                         IsChecked="{Binding IsSelectedCellItalic}"
+                         ToolTip="Italic (Ctrl+I)">
+                <TextBlock FontStyle="Italic" Text="I"/>
+            </ToggleButton>
+            <ToggleButton Command="{Binding ToggleUnderlineCommand}"
+                         IsChecked="{Binding IsSelectedCellUnderline}"
+                         ToolTip="Underline (Ctrl+U)">
+                <TextBlock TextDecorations="Underline" Text="U"/>
+            </ToggleButton>
         </ToolBar>
 
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <TextBox Grid.Column="1" 
+                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                     Margin="5,2"/>
+            <Button Grid.Column="2" 
+                    Command="{Binding SearchCommand}"
+                    Content="Search"
+                    Margin="2"/>
+        </Grid>
+
         <DataGrid x:Name="SpreadsheetGrid" 
-          Grid.Row="2"
+          Grid.Row="3"
           ItemsSource="{Binding Cells}"
           CanUserAddRows="False"
           CanUserDeleteRows="False"
@@ -53,9 +93,13 @@
           RowHeaderWidth="50"
           SelectionMode="Single"
           SelectionUnit="Cell"
+          IsReadOnly="False"
+          EnableRowVirtualization="True"
+          EnableColumnVirtualization="True"
           CellEditEnding="SpreadsheetGrid_CellEditEnding"
           LoadingRow="SpreadsheetGrid_LoadingRow"
-          AutoGeneratingColumn="SpreadsheetGrid_AutoGeneratingColumn">
+          AutoGeneratingColumn="SpreadsheetGrid_AutoGeneratingColumn"
+          SelectedCellsChanged="SpreadsheetGrid_SelectedCellsChanged">
             <DataGrid.Resources>
                 <Style TargetType="DataGridCell">
                     <Setter Property="BorderThickness" Value="1"/>
@@ -72,7 +116,7 @@
             </DataGrid.Resources>
         </DataGrid>
 
-        <StatusBar Grid.Row="3">
+        <StatusBar Grid.Row="4">
             <StatusBarItem>
                 <TextBlock Text="{Binding StatusMessage}"/>
             </StatusBarItem>

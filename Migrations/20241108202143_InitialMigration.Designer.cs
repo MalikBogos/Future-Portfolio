@@ -11,8 +11,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace FuturePortfolio.Migrations
 {
     [DbContext(typeof(FuturePortfolioDbContext))]
-    [Migration("20241107201112_InitialCreate")]
-    partial class InitialCreate
+    [Migration("20241108202143_InitialMigration")]
+    partial class InitialMigration
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -40,6 +40,21 @@ namespace FuturePortfolio.Migrations
 
                     b.Property<string>("Formula")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsBold")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<bool>("IsItalic")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<bool>("IsUnderlined")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
 
                     b.Property<int>("RowIndex")
                         .HasColumnType("int");
